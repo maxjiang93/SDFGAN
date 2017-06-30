@@ -2,23 +2,27 @@
 
 # variables
 PROJ_DIR=/home/maxjiang/Codes/project_sdfgan
-JOB_DIR=${PROJ_DIR}/sdfgan/jobs/job0-shapenet-car
-
-DATASET_DIR=${PROJ_DIR}/sdfgan/data
+JOB_DIR=${PROJ_DIR}/sdfgan_data/jobs/job2-shapenet-car
+DATASET_DIR=${PROJ_DIR}/sdfgan_data/data
 LOG_DIR=${JOB_DIR}/logs
 SAMPLE_DIR=${JOB_DIR}/samples
 CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 
 # execute
 python main.py \
+--is_new \
+--is_train \
+--batch_size=16 \
+--z_dim=50 \
 --epoch=25 \
+--net_width=20 \
+--net_depth=10 \
+--g_learning_rate=0.0001 \
+--d_learning_rate=0.00001 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
 --num_gpus=4 \
 --dataset=shapenet_car \
---g_learning_rate=0.0005 \
---d_learning_rate=0.0002 \
---is_train \
---field_constraint=.1 
+--field_constraint=0

@@ -3,6 +3,7 @@ import numpy as np
 
 from model import SDFGAN
 from utils import pp, show_all_variables, create_samples
+import shutil
 
 import tensorflow as tf
 
@@ -24,7 +25,10 @@ flags.DEFINE_integer("output_height", None,
 flags.DEFINE_integer("output_width", None,
                      "The size of the output images to produce. If None, same value as output_depth [None]")
 flags.DEFINE_integer("c_dim", 1, "Dimension of sdf. [1]")
+flags.DEFINE_integer("z_dim", 100, "Dimension of sdf. [1]")
 flags.DEFINE_string("dataset", "shapenet", "The name of dataset [shapenet]")
+flags.DEFINE_integer("net_depth", 10, "Depth of CPPN generator network [10]")
+flags.DEFINE_integer("net_width", 50, "Width of CPPN generator network [20]")
 flags.DEFINE_string("input_fname_pattern", "*.npy", "Glob pattern of filename of input sdf [*]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("dataset_dir", "data", "Directory name to read the input training data [data]")
@@ -32,6 +36,7 @@ flags.DEFINE_string("log_dir", "logs", "Directory name to save the log files [lo
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_new", False, "True for training from scratch, deleting original file [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 flags.DEFINE_integer("num_gpus", 1, "Number of GPUs to use [1]")
 flags.DEFINE_float("field_constraint", 0.1, "Coefficient for field constraint error [0.1]")
@@ -51,10 +56,20 @@ def main(_):
     if FLAGS.output_width is None:
         FLAGS.output_width = FLAGS.output_depth
 
+    if FLAGS.is_new:
+        if os.path.exists(FLAGS.checkpoint_dir):
+            shutil.rmtree(FLAGS.checkpoint_dir)
+        if os.path.exists(FLAGS.sample_dir):
+            shutil.rmtree(FLAGS.sample_dir)
+        if os.path.exists(FLAGS.log_dir):
+            shutil.rmtree(FLAGS.log_dir)
+
     if not os.path.exists(FLAGS.checkpoint_dir):
         os.makedirs(FLAGS.checkpoint_dir)
     if not os.path.exists(FLAGS.sample_dir):
         os.makedirs(FLAGS.sample_dir)
+    if not os.path.exists(FLAGS.log_dir):
+        os.makedirs(FLAGS.log_dir)
 
     # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     run_config = tf.ConfigProto()
@@ -74,6 +89,8 @@ def main(_):
             sample_num=FLAGS.batch_size,
             c_dim=FLAGS.c_dim,
             dataset_name=FLAGS.dataset,
+            net_depth=FLAGS.net_depth,
+            net_width=FLAGS.net_width,
             input_fname_pattern=FLAGS.input_fname_pattern,
             is_crop=FLAGS.is_crop,
             checkpoint_dir=FLAGS.checkpoint_dir,

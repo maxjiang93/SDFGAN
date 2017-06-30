@@ -13,19 +13,18 @@ def conv_out_size_same(size, stride):
 class SDFGAN(object):
     def __init__(self, sess, input_depth=64, input_height=64, input_width=64, is_crop=True,
                  batch_size=64, sample_num=64,
-                 output_depth=64, output_height=64, output_width=64, z_dim=200, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=1, dataset_name='shapenet',
+                 output_depth=64, output_height=64, output_width=64, z_dim=100, df_dim=64,
+                 dfc_dim=1024, c_dim=1, dataset_name='shapenet',
+                 net_depth=20, net_width=20,
                  input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None,
-                 num_gpus=1, field_constraint=0.1):
+                 num_gpus=1, field_constraint=0):
         """
 
         Args:
           sess: TensorFlow session
           batch_size: The size of batch. Should be specified before training.
           z_dim: (optional) Dimension of dim for Z. [100]
-          gf_dim: (optional) Dimension of gen filters in first conv layer. [64]
           df_dim: (optional) Dimension of discrim filters in first conv layer. [64]
-          gfc_dim: (optional) Dimension of gen units for for fully connected layer. [1024]
           dfc_dim: (optional) Dimension of discrim units for fully connected layer. [1024]
           c_dim: (optional) Dimension of image color. For grayscale input, set to 1. [3]
         """
@@ -45,12 +44,10 @@ class SDFGAN(object):
         self.output_width = output_width
 
         self.z_dim = z_dim
-
-        self.gf_dim = gf_dim
         self.df_dim = df_dim
-
-        self.gfc_dim = gfc_dim
         self.dfc_dim = dfc_dim
+        self.net_depth = net_depth
+        self.net_width = net_width
 
         self.c_dim = c_dim
         self.num_gpus = num_gpus
@@ -62,10 +59,9 @@ class SDFGAN(object):
         self.d_bn2 = batch_norm(name='d_bn2')
         self.d_bn3 = batch_norm(name='d_bn3')
 
-        self.g_bn0 = batch_norm(name='g_bn0')
-        self.g_bn1 = batch_norm(name='g_bn1')
-        self.g_bn2 = batch_norm(name='g_bn2')
-        self.g_bn3 = batch_norm(name='g_bn3')
+        self.g_bn = []
+        for i in range(self.net_depth - 1):
+            self.g_bn.append(batch_norm(name='g_bn{0}'.format(i)))
 
         self.dataset_name = dataset_name
         self.input_fname_pattern = input_fname_pattern
@@ -160,7 +156,7 @@ class SDFGAN(object):
                     # enforce symmetry (along dim=2)
                     gpu_left = gpu_G[:, :, :int(image_dims[2] / 2)]
                     gpu_rite = tf.reverse(gpu_G[:, :, int(image_dims[2] / 2):], axis=[2])
-                    gpu_g_loss_sym = tf.reduce_mean(tf.square(tf.subtract(gpu_left, gpu_rite)))
+                    gpu_g_loss_sym = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(gpu_left, gpu_rite))))
 
                     # combined generator loss
                     gpu_g_loss = gpu_g_loss_gen + (gpu_g_loss_eik + gpu_g_loss_sym) * self.field_constraint
@@ -307,7 +303,7 @@ class SDFGAN(object):
         for epoch in xrange(config.epoch):
             # shuffle data before training in each epoch
             np.random.shuffle(data)
-            for idx in xrange(0, batch_idxs):
+            for idx in xrange(0, batch_idxs - 1):
                 glob_batch_files = data[idx * self.glob_batch_size:(idx + 1) * self.glob_batch_size]
                 glob_batch = [
                     np.load(batch_file)[0, :, :, :] for batch_file in glob_batch_files]
@@ -389,71 +385,94 @@ class SDFGAN(object):
 
             return tf.nn.sigmoid(h4), h4
 
-    def generator(self, z):
+# CPPN Generator
+    def generator(self, z, activation='lrelu'):
         with tf.variable_scope("generator") as scope:
-            s_d, s_h, s_w = self.output_depth, self.output_height, self.output_width
-            s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_d8, s_h8, s_w8 = conv_out_size_same(s_d4, 2), conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_d16, s_h16, s_w16 = conv_out_size_same(s_d8, 2), conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
+            # create and batch coordinate by pixels
+            n_pix = self.output_depth * self.output_height * self.output_width
+            x_grid = tf.lin_space(-0.5, 0.5, self.output_depth)
+            y_grid = tf.lin_space(-0.5, 0.5, self.output_height)
+            z_grid = tf.lin_space(-0.5, 0.5, self.output_width)
+            X, Y, Z = tf.meshgrid(x_grid, y_grid, z_grid)
+            x_flat = tf.reshape(X, shape=[-1])
+            y_flat = tf.reshape(Y, shape=[-1])
+            z_flat = tf.reshape(Z, shape=[-1])
+            x_pixels = tf.reshape(tf.tile(x_flat, [self.batch_size]), [-1, 1])
+            y_pixels = tf.reshape(tf.tile(y_flat, [self.batch_size]), [-1, 1])
+            z_pixels = tf.reshape(tf.tile(z_flat, [self.batch_size]), [-1, 1])
 
-            # project `z` and reshape
-            self.z_, self.h0_w, self.h0_b = linear(
-                z, self.gf_dim * 8 * s_d16 * s_h16 * s_w16, 'g_h0_lin', with_w=True)
+            # tile and reshape latent vector
+            z_latent = tf.reshape(tf.reshape(tf.tile(z, [1, n_pix]), [-1]), [-1, self.z_dim])
 
-            self.h0 = tf.reshape(
-                self.z_, [-1, s_d16, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(self.h0))
+            # construct unrolled input matrix
+            h = tf.concat([z_latent, x_pixels, y_pixels, z_pixels], axis=1)
 
-            self.h1, self.h1_w, self.h1_b = deconv3d(
-                h0, [self.batch_size, s_d8, s_h8, s_w8, self.gf_dim * 4], name='g_h1', with_w=True)
-            h1 = tf.nn.relu(self.g_bn1(self.h1))
+            # rectifier function choice
+            def rectify(x):
+                assert activation == 'relu' or activation == 'tanh' or activation == 'lrelu'
+                if activation == 'relu':
+                    return tf.nn.relu(x)
+                elif activation == 'tanh':
+                    return tf.tanh(x)
+                elif activation == 'lrelu':
+                    return lrelu(x)
 
-            h2, self.h2_w, self.h2_b = deconv3d(
-                h1, [self.batch_size, s_d4, s_h4, s_w4, self.gf_dim * 2], name='g_h2', with_w=True)
-            h2 = tf.nn.relu(self.g_bn2(h2))
+            # CPPN network
+            for hl in range(self.net_depth - 1):
+                # linear layer, batch norm, activation
+                h = rectify(self.g_bn[hl](linear(h, self.net_width, name='g_h{0}_lin'.format(hl))))
 
-            h3, self.h3_w, self.h3_b = deconv3d(
-                h2, [self.batch_size, s_d2, s_h2, s_w2, self.gf_dim * 1], name='g_h3', with_w=True)
-            h3 = tf.nn.relu(self.g_bn3(h3))
+            # always use tanh in last layer to clip value between -1 and 1
+            pix_out = tf.tanh(linear(h, 1, name='g_h{0}_lin'.format(self.net_depth - 1)))
 
-            h4, self.h4_w, self.h4_b = deconv3d(
-                h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4', with_w=True)
+            output = tf.reshape(pix_out,
+                                [self.batch_size, self.output_width, self.output_height, self.output_depth, self.c_dim])
 
-            h5 = low_pass(tf.nn.tanh(h4))
-#             return tf.nn.tanh(h4)
+            return output
 
-            return h5
-
-
-    def sampler(self, z):
+# CPPN sampler
+    def sampler(self, z, activation='tanh'):
         with tf.variable_scope("generator") as scope:
             scope.reuse_variables()
 
-            s_d, s_h, s_w = self.output_depth, self.output_height, self.output_width
-            s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_d8, s_h8, s_w8 = conv_out_size_same(s_d4, 2), conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_d16, s_h16, s_w16 = conv_out_size_same(s_d8, 2), conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
+            # create and batch coordinate by pixels
+            n_pix = self.output_depth * self.output_height * self.output_width
+            x_grid = tf.lin_space(-0.5, 0.5, self.output_depth)
+            y_grid = tf.lin_space(-0.5, 0.5, self.output_height)
+            z_grid = tf.lin_space(-0.5, 0.5, self.output_width)
+            X, Y, Z = tf.meshgrid(x_grid, y_grid, z_grid)
+            x_flat = tf.reshape(X, shape=[-1])
+            y_flat = tf.reshape(Y, shape=[-1])
+            z_flat = tf.reshape(Z, shape=[-1])
+            x_pixels = tf.reshape(tf.tile(x_flat, [self.batch_size]), [-1, 1])
+            y_pixels = tf.reshape(tf.tile(y_flat, [self.batch_size]), [-1, 1])
+            z_pixels = tf.reshape(tf.tile(z_flat, [self.batch_size]), [-1, 1])
 
-            # project `z` and reshape
-            h0 = tf.reshape(
-                linear(z, self.gf_dim * 8 * s_d16 * s_h16 * s_w16, 'g_h0_lin'),
-                [-1, s_d16, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0, train=False))
+            # tile and reshape latent vector
+            z_latent = tf.reshape(tf.reshape(tf.tile(z, [1, n_pix]), [-1]), [-1, self.z_dim])
 
-            h1 = deconv3d(h0, [self.batch_size, s_d8, s_h8, s_w8, self.gf_dim * 4], name='g_h1')
-            h1 = tf.nn.relu(self.g_bn1(h1, train=False))
+            # construct unrolled input matrix
+            h = tf.concat([z_latent, x_pixels, y_pixels, z_pixels], axis=1)
 
-            h2 = deconv3d(h1, [self.batch_size, s_d4, s_h4, s_w4, self.gf_dim * 2], name='g_h2')
-            h2 = tf.nn.relu(self.g_bn2(h2, train=False))
+            # rectifier function choice
+            def rectify(x):
+                assert activation == 'relu' or activation == 'tanh'
+                if activation == 'relu':
+                    return tf.nn.relu(x)
+                elif activation == 'tanh':
+                    return tf.tanh(x)
 
-            h3 = deconv3d(h2, [self.batch_size, s_d2, s_h2, s_w2, self.gf_dim * 1], name='g_h3')
-            h3 = tf.nn.relu(self.g_bn3(h3, train=False))
+            # CPPN network
+            for hl in range(self.net_depth - 1):
+                # linear layer, batch norm, activation
+                h = rectify(self.g_bn[hl](linear(h, self.net_width, name='g_h{0}_lin'.format(hl))))
 
-            h4 = deconv3d(h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4')
+            # always use tanh in last layer to clip value between -1 and 1
+            pix_out = tf.tanh(linear(h, 1, name='g_h{0}_lin'.format(self.net_depth - 1)))
 
-            return tf.nn.tanh(h4)
+            output = tf.reshape(pix_out, [self.batch_size, self.output_width, self.output_height, self.output_depth])
+
+            return output
 
     @property
     def model_dir(self):
