@@ -7,6 +7,7 @@
           <settings>
             <list>
               <mapping local-root="$PROJECT_DIR$" remote-root="/home/maxjiang/Codes/project_sdfgan/SDFGAN" />
+              <mapping local-root="$PROJECT_DIR$/../sdfgan_data" remote-root="/home/maxjiang/Codes/project_sdfgan/sdfgan_data" />
             </list>
           </settings>
         </remote-mappings>
