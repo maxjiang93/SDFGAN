@@ -420,11 +420,7 @@ class SDFGAN(object):
             h4, self.h4_w, self.h4_b = deconv3d(
                 h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4', with_w=True)
 
-            h5 = low_pass(tf.nn.tanh(h4))
-#             return tf.nn.tanh(h4)
-
-            return h5
-
+            return tf.nn.tanh(h4)
 
     def sampler(self, z):
         with tf.variable_scope("generator") as scope:

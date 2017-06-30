@@ -3,6 +3,7 @@ import numpy as np
 
 from model import SDFGAN
 from utils import pp, show_all_variables, create_samples
+import shutill
 
 import tensorflow as tf
 
@@ -30,6 +31,7 @@ flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the 
 flags.DEFINE_string("dataset_dir", "data", "Directory name to read the input training data [data]")
 flags.DEFINE_string("log_dir", "logs", "Directory name to save the log files [logs]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
+flags.DEFINE_boolean("is_new", False, "True for training from scratch, deleting original file [False]")
 flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
@@ -50,6 +52,14 @@ def main(_):
         FLAGS.output_height = FLAGS.output_depth
     if FLAGS.output_width is None:
         FLAGS.output_width = FLAGS.output_depth
+
+    if FLAGS.is_new:
+        if os.path.exists(FLAGS.checkpoint_dir):
+            shutil.rmtree(FLAGS.checkpoint_dir)
+        if os.path.exists(FLAGS.sample_dir):
+            shutil.rmtree(FLAGS.sample_dir)
+        if os.path.exists(FLAGS.log_dir):
+            shutil.rmtree(FLAGS.log_dir)
 
     if not os.path.exists(FLAGS.checkpoint_dir):
         os.makedirs(FLAGS.checkpoint_dir)
