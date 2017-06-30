@@ -385,10 +385,26 @@ class SDFGAN(object):
             h1 = lrelu(self.d_bn1(conv3d(h0, self.df_dim * 2, name='d_h1_conv')))
             h2 = lrelu(self.d_bn2(conv3d(h1, self.df_dim * 4, name='d_h2_conv')))
             h3 = lrelu(self.d_bn3(conv3d(h2, self.df_dim * 8, name='d_h3_conv')))
-            h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, name='d_h3_lin')
+            h3_flat = tf.contrib.layers.flatten(h3)
+            lth_layer = linear(h3_flat, 1024, name='d_ll_lin')
+            fin_logit = linear(lth_layer, 1, name='d_fl_lin')
+            fin_result = tf.nn.sigmoid(fin_logit)
 
-            return tf.nn.sigmoid(h4), h4
+            return fin_result, fin_logit
 
+    def encoder(self, image):
+        with tf.variable_scope("encoder") as scope:
+            h0 = lrelu(conv3d(image, self.df_dim, name='e_h0_conv'))
+            h1 = lrelu(self.d_bn1(conv3d(h0, self.df_dim * 2, name='e_h1_conv')))
+            h2 = lrelu(self.d_bn2(conv3d(h1, self.df_dim * 4, name='e_h2_conv')))
+            h3 = lrelu(self.d_bn3(conv3d(h2, self.df_dim * 8, name='e_h3_conv')))
+            # flatten
+            h3_flat = tf.contrib.layers.flatten(h3)
+            z_mean = linear(h3_flat, self.z_dim, name='e_h3_lin_mean')
+            z_log_sigma_sq = linear(h3_flat, self.z_dim, name='e_h3_lin_sig')
+
+            return z_mean, z_log_sigma_sq
+            
     def generator(self, z):
         with tf.variable_scope("generator") as scope:
             s_d, s_h, s_w = self.output_depth, self.output_height, self.output_width
