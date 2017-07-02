@@ -118,11 +118,24 @@ class SDFGAN(object):
 
                     # number of effective data points
                     gpu_n_eff = tf.reduce_min([tf.reduce_max([0, self.n_eff - gpu_start]), self.batch_size])
+                    
+                    # inference
+                    # encoder
+                    z_x_mean, z_x_log_sigma_sq = encoder(self.inputs[gpu_start:gpu_end])
+                    
+                    # generator
+                    eps = tf.random_normal((self.batch_size, self.z_dim), 0, 1) # normal dist for VAE
+                    z_p =  tf.random_normal((batch_size, hidden_size), 0, 1) # normal dist for GAN
 
-                    # create examples and pass through discriminator
-                    gpu_G = self.generator(self.z[gpu_start:gpu_end])
-                    gpu_D, gpu_D_logits = self.discriminator(self.inputs[gpu_start:gpu_end])
-                    gpu_D_, gpu_D_logits_ = self.discriminator(gpu_G, reuse=True)
+                    z_x = tf.add(z_x_mean, 
+                                 tf.mul(tf.sqrt(tf.exp(z_x_log_sigma_sq)), eps)) # grab our actual latent vec z
+                    gpu_e_G = self.generator(z_x)  # recover from autoencoder
+                    gpu_G = self.generator(z_p)  # fake sample
+
+                    # discriminator
+                    gpu_D, gpu_D_logits, gpu_llayer = self.discriminator(self.inputs[gpu_start:gpu_end])
+                    gpu_D_, gpu_D_logits_, _ = self.discriminator(gpu_G, reuse=True)
+                    _, _, gpu_e_llayer = self.discriminator(gpu_e_G, reuse=True)
 
                     # compatibility across different tf versions
                     def sigmoid_cross_entropy_with_logits(x, y):
@@ -132,16 +145,22 @@ class SDFGAN(object):
                             return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, targets=y)
 
                     # compute loss and accuracy
-                    gpu_d_loss_real = tf.reduce_mean(
-                        sigmoid_cross_entropy_with_logits(gpu_D_logits[:gpu_n_eff], tf.ones_like(gpu_D[:gpu_n_eff])))
-                    gpu_d_loss_fake = tf.reduce_mean(
-                        sigmoid_cross_entropy_with_logits(gpu_D_logits_[:gpu_n_eff], tf.zeros_like(gpu_D_[:gpu_n_eff])))
-                    gpu_g_loss_gen = tf.reduce_mean(
-                        sigmoid_cross_entropy_with_logits(gpu_D_logits_[:gpu_n_eff], tf.ones_like(gpu_D_[:gpu_n_eff])))
+                    gpu_kl_loss = tf.reduce_sum(-0.5 * tf.reduce_sum(1 + tf.clip_by_value(z_x_log_sigma_sq, -10.0, 10.0) 
+                                   - tf.square(tf.clip_by_value(z_x_mean, -10.0, 10.0) ) 
+                                   - tf.exp(tf.clip_by_value(z_x_log_sigma_sq, -10.0, 10.0) ), 1))
+                                   /self.output_depth/self.output_height/self.output_width
+                    gpu_d_loss_real = tf.reduce_mean(tf.clip_by_value(
+                        sigmoid_cross_entropy_with_logits(gpu_D_logits[:gpu_n_eff], tf.ones_like(gpu_D[:gpu_n_eff])), 1e-5, 1.0))
+                    gpu_d_loss_fake = tf.reduce_mean(tf.clip_by_value(
+                        sigmoid_cross_entropy_with_logits(gpu_D_logits_[:gpu_n_eff], tf.zeros_like(gpu_D_[:gpu_n_eff])), 1e-5, 1.0))
+                    gpu_g_loss_gen = tf.reduce_mean(tf.clip_by_value(
+                        sigmoid_cross_entropy_with_logits(gpu_D_logits_[:gpu_n_eff], tf.ones_like(gpu_D_[:gpu_n_eff])), 1e-5, 1.0))
                     gpu_d_loss = gpu_d_loss_real + gpu_d_loss_fake
+                    
                     gpu_d_accu_real = tf.reduce_sum(tf.cast(gpu_D[:gpu_n_eff] > .5, tf.int32)) / gpu_D.get_shape()[0]
                     gpu_d_accu_fake = tf.reduce_sum(tf.cast(gpu_D_[:gpu_n_eff] < .5, tf.int32)) / gpu_D_.get_shape()[0]
                     gpu_d_accu = (gpu_d_accu_real + gpu_d_accu_fake) / 2
+                    
 
                     # compute generator field constraint loss
                     # enforce eikonal equation
@@ -390,7 +409,7 @@ class SDFGAN(object):
             fin_logit = linear(lth_layer, 1, name='d_fl_lin')
             fin_result = tf.nn.sigmoid(fin_logit)
 
-            return fin_result, fin_logit
+            return fin_result, fin_logit, lth_layer
 
     def encoder(self, image):
         with tf.variable_scope("encoder") as scope:
