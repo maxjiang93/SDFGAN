@@ -1,6 +1,5 @@
 from __future__ import division
 import time
-from glob import glob
 
 from ops import *
 from utils import *
@@ -89,6 +88,8 @@ class SDFGAN(object):
         # input placeholders
         self.inputs = tf.placeholder(
             tf.float32, [self.glob_batch_size] + image_dims, name='real_images')
+        self.sample_inputs = tf.placeholder(
+            tf.float32, [self.sample_num] + image_dims, name='real_samples')
         self.z = tf.placeholder(
             tf.float32, [None, self.z_dim], name='z')
         self.n_eff = tf.placeholder(tf.int32, name='n_eff')  # overall number of effective data points
@@ -106,6 +107,8 @@ class SDFGAN(object):
         self.d_loss_real = [None] * self.num_gpus
         self.d_loss_fake = [None] * self.num_gpus
         self.e_losses = [None] * self.num_gpus
+        self.e_loss_kl = [None] * self.num_gpus
+        self.e_loss_ll = [None] * self.num_gpus
         self.g_losses = [None] * self.num_gpus
         self.d_losses = [None] * self.num_gpus
         self.d_accus = [None] * self.num_gpus
@@ -149,25 +152,10 @@ class SDFGAN(object):
 
                     # compute loss and accuracy
                     # # clip values
-                    gpu_kl_loss = tf.reduce_sum(-0.5 * tf.reduce_sum(1 + tf.clip_by_value(z_x_log_sigma_sq, -1.0, 1.0)
-                                   - tf.square(tf.clip_by_value(z_x_mean, -10.0, 10.0))
-                                   - tf.exp(tf.clip_by_value(z_x_log_sigma_sq, -10.0, 10.0)), 1))\
+                    gpu_kl_loss = tf.reduce_sum(-0.5 * tf.reduce_sum(1 + tf.clip_by_value(z_x_log_sigma_sq, -5.0, 5.0)
+                                   - tf.square(tf.clip_by_value(z_x_mean, -5.0, 5.0))
+                                   - tf.exp(tf.clip_by_value(z_x_log_sigma_sq, -5.0, 5.0)), 1))\
                                    / self.output_depth / self.output_height / self.output_width
-                    # gpu_d_loss_real = tf.reduce_mean(tf.clip_by_value(
-                    #     sigmoid_cross_entropy_with_logits(
-                    #         gpu_D_logits[:gpu_n_eff], tf.ones_like(gpu_D[:gpu_n_eff])), 1e-5, 10.0))
-                    # gpu_d_loss_fake = tf.reduce_mean(tf.clip_by_value(
-                    #     sigmoid_cross_entropy_with_logits(
-                    #         gpu_D_logits_[:gpu_n_eff], tf.zeros_like(gpu_D_[:gpu_n_eff])), 1e-5, 10.0))
-                    # gpu_g_loss_gen = tf.reduce_mean(tf.clip_by_value(
-                    #     sigmoid_cross_entropy_with_logits(
-                    #         gpu_D_logits_[:gpu_n_eff], tf.ones_like(gpu_D_[:gpu_n_eff])), 1e-5, 1.0))
-
-                    # no-clip values
-                    # gpu_kl_loss = tf.reduce_sum(
-                    #     -0.5 * tf.reduce_sum(1 + z_x_log_sigma_sq - tf.square(z_x_mean)
-                    #                          - tf.exp(z_x_log_sigma_sq), 1)) \
-                    #                 / self.output_depth / self.output_height / self.output_width
                     gpu_d_loss_real = tf.reduce_mean(
                         sigmoid_cross_entropy_with_logits(
                             gpu_D_logits[:gpu_n_eff], tf.ones_like(gpu_D[:gpu_n_eff])))
@@ -179,9 +167,12 @@ class SDFGAN(object):
                             gpu_D_logits_[:gpu_n_eff], tf.ones_like(gpu_D_[:gpu_n_eff])))
 
                     gpu_d_loss = gpu_d_loss_real + gpu_d_loss_fake
-                    gpu_ll_loss = tf.reduce_sum(tf.square(gpu_llayer - gpu_e_llayer)) \
+                    # gpu_ll_loss = tf.reduce_sum(tf.square(gpu_llayer - gpu_e_llayer)) \
+                    #               / self.output_depth / self.output_height / self.output_width
+                    # L2 Distance Metric
+                    gpu_ll_loss = 0.1 * tf.reduce_sum(tf.square(gpu_EG - gpu_I)) \
                                   / self.output_depth / self.output_height / self.output_width
-                    
+
                     gpu_d_accu_real = tf.reduce_sum(tf.cast(gpu_D[:gpu_n_eff] > .5, tf.int32)) / gpu_D.get_shape()[0]
                     gpu_d_accu_fake = tf.reduce_sum(tf.cast(gpu_D_[:gpu_n_eff] < .5, tf.int32)) / gpu_D_.get_shape()[0]
                     gpu_d_accu = (gpu_d_accu_real + gpu_d_accu_fake) / 2
@@ -205,14 +196,7 @@ class SDFGAN(object):
                     gpu_rite = tf.reverse(gpu_G[:, :, int(image_dims[2] / 2):], axis=[2])
                     gpu_g_loss_sym = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(gpu_left, gpu_rite))))
 
-                    # combine losses for encoder, generator and discriminator
-                    # # # clip
-                    # gpu_e_loss = tf.clip_by_value(gpu_ll_loss + gpu_kl_loss, -100, 100)
-                    # gpu_g_loss = tf.clip_by_value(gpu_g_loss_gen
-                    #                               + (gpu_g_loss_eik + gpu_g_loss_sym) * self.field_constraint
-                    #                               + gpu_ll_loss, -100, 100)
-                    # gpu_d_loss = tf.clip_by_value(gpu_d_loss, -100, 100)
-                    # no-clip
+                    # combine losses for encoder, generator and discriminator)
                     gpu_e_loss = gpu_ll_loss + gpu_kl_loss
                     gpu_g_loss = gpu_g_loss_gen + (gpu_g_loss_eik + gpu_g_loss_sym) * self.field_constraint \
                                  + gpu_ll_loss
@@ -227,6 +211,8 @@ class SDFGAN(object):
                     self.D_logits[gpuid] = gpu_D_logits
                     self.D_logits_[gpuid] = gpu_D_logits_
                     self.e_losses[gpuid] = gpu_e_loss
+                    self.e_loss_kl[gpuid] = gpu_kl_loss
+                    self.e_loss_ll[gpuid] = gpu_ll_loss
                     self.d_loss_real[gpuid] = gpu_d_loss_real
                     self.d_loss_fake[gpuid] = gpu_d_loss_fake
                     self.d_losses[gpuid] = gpu_d_loss
@@ -255,6 +241,8 @@ class SDFGAN(object):
             return result
 
         self.e_loss = tf.reduce_sum(weighted_avg(self.e_losses), axis=0)
+        self.e_loss_kl = tf.reduce_sum(weighted_avg(self.e_loss_kl), axis=0)
+        self.e_loss_ll = tf.reduce_sum(weighted_avg(self.e_loss_ll), axis=0)
         self.d_loss_real = tf.reduce_sum(weighted_avg(self.d_loss_real), axis=0)
         self.d_loss_fake = tf.reduce_sum(weighted_avg(self.d_loss_fake), axis=0)
         self.d_loss = tf.reduce_sum(weighted_avg(self.d_losses), axis=0)
@@ -272,6 +260,8 @@ class SDFGAN(object):
         self.i_sum = image_summary("I", self.I[:, 32, :, :])
 
         self.e_loss_sum = scalar_summary("e_loss", self.e_loss)
+        self.e_loss_kl_sum = scalar_summary("e_loss_kl", self.e_loss_kl)
+        self.e_loss_ll_sum = scalar_summary("e_loss_ll", self.e_loss_ll)
 
         self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -289,8 +279,11 @@ class SDFGAN(object):
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
 
-        self.sampler = self.sampler(self.z)
         self.saver = tf.train.Saver()
+
+        # sampler
+        self.train_shapes, self.dec_shapes, self.rand_shapes \
+            = self.sampler(self.sample_inputs[:self.sample_num], self.z)
 
     def train(self, config):
         """Train SFDGAN"""
@@ -299,19 +292,16 @@ class SDFGAN(object):
 
         d_accu = tf.placeholder(tf.float32, name='d_accu')
 
-        def sigmoid(x, shift, mult):
-            """
-            Using this sigmoid to discourage one network overpowering the other
-            """
-            return 1 / (1 + tf.exp(-(x + shift) * mult))
+        # def sigmoid(x, shift, mult):
+        #     """
+        #     Using this sigmoid to discourage one network overpowering the other
+        #     """
+        #     return 1 / (1 + tf.exp(-(x + shift) * mult))
 
         # define optimization operation
-        e_opt = tf.train.AdamOptimizer(config.e_learning_rate *
-                                       sigmoid(d_accu, -.5, 15), beta1=config.beta1)
-        g_opt = tf.train.AdamOptimizer(config.g_learning_rate *
-                                       sigmoid(d_accu, -.5, 15), beta1=config.beta1)
-        d_opt = tf.train.AdamOptimizer(config.d_learning_rate *
-                                       sigmoid(1 - d_accu, -.5, 15), beta1=config.beta1)
+        e_opt = tf.train.AdamOptimizer(config.e_learning_rate, beta1=config.beta1)
+        g_opt = tf.train.AdamOptimizer(config.g_learning_rate, beta1=config.beta1)
+        d_opt = tf.train.AdamOptimizer(config.d_learning_rate, beta1=config.beta1)
 
         # create list of grads from different gpus
         global_e_grads_vars = [None] * self.num_gpus
@@ -335,9 +325,9 @@ class SDFGAN(object):
         d_grads_vars = average_gradients(global_d_grads_vars)
 
         # clip gradients
-        e_grads_vars = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in e_grads_vars]
-        g_grads_vars = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in g_grads_vars]
-        d_grads_vars = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in d_grads_vars]
+        e_grads_vars = [(tf.clip_by_value(grad, -.5, .5), var) for grad, var in e_grads_vars]
+        g_grads_vars = [(tf.clip_by_value(grad, -.5, .5), var) for grad, var in g_grads_vars]
+        d_grads_vars = [(tf.clip_by_value(grad, -.5, .5), var) for grad, var in d_grads_vars]
 
         e_optim = e_opt.apply_gradients(e_grads_vars)
         g_optim = g_opt.apply_gradients(g_grads_vars)
@@ -349,23 +339,24 @@ class SDFGAN(object):
         except:
             tf.initialize_all_variables().run()
 
-        self.e_sum = merge_summary([self.eg_sum, self.i_sum, self.e_loss_sum])
+        self.e_sum = merge_summary([self.eg_sum, self.i_sum, self.e_loss_sum, self.e_loss_kl_sum, self.e_loss_ll_sum])
         self.g_sum = merge_summary([self.z_sum, self.d__sum, self.g_loss_eik_sum, self.g_loss_sym_sum,
                                     self.g_loss_gen_sum, self.g_sum, self.d_loss_fake_sum, self.g_loss_sum])
         self.d_sum = merge_summary(
             [self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
 
         self.writer = SummaryWriter(self.log_dir, self.sess.graph)
+
         sample_z = np.random.normal(0, 1, size=(self.sample_num, self.z_dim))
         sample_files = data[0:self.sample_num]
         sample = [np.load(sample_file)[0, :, :, :] for sample_file in sample_files]
 
-        if (self.is_grayscale):
-            sample_inputs = np.array(sample).astype(np.float32)
+        if self.is_grayscale:
+            sample_inputs = np.array(sample).astype(np.float32)[:, :, :, :, None]
         else:
-            sample_inputs = np.array(sample).astype(np.float32)
+            sample_inputs = np.array(sample).astype(np.float32)[:, :, :, :, None]
 
-        counter = 1
+        counter = 0
         could_load, checkpoint_counter = self.load(self.checkpoint_dir)
         if could_load:
             counter = checkpoint_counter
@@ -375,7 +366,7 @@ class SDFGAN(object):
 
         d_accu_last_batch = .5
         batch_idxs = int(math.ceil(min(len(data), config.train_size) / self.glob_batch_size))
-        total_steps = config.epoch * batch_idxs
+        total_steps = config.epoch * (batch_idxs - 1)
         prev_time = -np.inf
 
         for epoch in xrange(config.epoch):
@@ -433,39 +424,44 @@ class SDFGAN(object):
                 now_time = time.time()
                 time_per_iter = now_time - prev_time
                 prev_time = now_time
-                eta = (total_steps - counter) * time_per_iter
+                eta = (total_steps - counter + checkpoint_counter) * time_per_iter
                 counter += 1
 
-                if eta == np.inf:
-                    timestr = 'inf'
-                else:
+                print(eta, total_steps, counter)
+                try:
                     timestr = time.strftime("%H:%M:%S", time.gmtime(eta))
+                except:
+                    timestr = '?:?:?'
 
-                print("Epoch: [%2d] [%4d/%4d]  eta(h:m:s): %s, e_loss: %.8f, d_loss: %.8f, g_loss: %.8f, d_accu: %.4f"
-                      % (epoch, idx, batch_idxs,
+                print("Epoch:[%3d] [%3d/%3d] Iter:[%5d] eta(h:m:s): %s, e_loss: %.8f, d_loss: %.8f, g_loss: %.8f, d_accu: %.4f"
+                      % (epoch, idx, batch_idxs, counter,
                          timestr, errE,
                          errD_fake + errD_real, errG, d_accu_last_batch))
 
                 if np.mod(counter, 200) == 1:
-                    try:
-                        samples, d_loss, g_loss = self.sess.run(
-                            [self.sampler, self.d_loss, self.g_loss],
-                            feed_dict={
-                                self.z: sample_z,
-                                self.inputs: sample_inputs,
-                            },
-                        )
-                        np.save(self.sample_dir+'/train_{:02d}_{:04d}.npy'
-                                .format(config.sample_dir, epoch, idx), samples)
-                        print("[Sample] d_loss: %.8f, g_loss: %.8f, d_accu: %.4f"
-                              % (d_loss, g_loss, d_accu_last_batch))
-                    except:
-                        print("Error when saving samples.")
-
-                if np.mod(counter, 200) == 2:
+                    train_shapes, dec_shapes, rand_shapes \
+                        = self.sess.run([self.train_shapes, self.dec_shapes, self.rand_shapes],
+                                        feed_dict={self.z: sample_z,
+                                                   self.sample_inputs: sample_inputs})
+                    np.save(self.sample_dir+'/sample_{:05d}_train.npy'
+                                .format(counter), train_shapes)
+                    np.save(self.sample_dir + '/sample_{:05d}_dec.npy'
+                            .format(counter), dec_shapes)
+                    np.save(self.sample_dir + '/sample_{:05d}_rand.npy'
+                            .format(counter), rand_shapes)
+                    print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint."
+                          .format(counter, self.sample_num))
                     self.save(config.checkpoint_dir, counter)
 
         # save last checkpoint
+        train_shapes, dec_shapes, rand_shapes \
+            = self.sess.run([self.train_shapes, self.dec_shapes, self.rand_shapes],
+                            feed_dict={self.z: sample_z,
+                                       self.sample_inputs: sample_inputs})
+        np.save(self.sample_dir + '/sample_final_train.npy', train_shapes)
+        np.save(self.sample_dir + '/sample_final_dec.npy', dec_shapes)
+        np.save(self.sample_dir + '/sample_final_rand.npy', rand_shapes)
+        print("[Sample] Iter {0}, saving sample size of {1f}, saving checkpoint.".format(counter, self.sample_num))
         self.save(config.checkpoint_dir, counter)
 
     def discriminator(self, image, reuse=False):
@@ -484,8 +480,10 @@ class SDFGAN(object):
 
             return fin_result, fin_logit, lth_layer
 
-    def encoder(self, image):
+    def encoder(self, image, reuse=False):
         with tf.variable_scope("encoder") as scope:
+            if reuse:
+                scope.reuse_variables()
             h0 = lrelu(conv3d(image, self.df_dim, name='e_h0_conv'))
             h1 = lrelu(self.e_bn1(conv3d(h0, self.df_dim * 2, name='e_h1_conv')))
             h2 = lrelu(self.e_bn2(conv3d(h1, self.df_dim * 4, name='e_h2_conv')))
@@ -531,34 +529,17 @@ class SDFGAN(object):
 
             return tf.nn.tanh(h4)
 
-    def sampler(self, z):
-        with tf.variable_scope("generator") as scope:
-            scope.reuse_variables()
+    def sampler(self, images, z):
+        enc_z_mean, enc_z_log_sigma_sq = self.encoder(images, reuse=True)
+        eps = tf.random_normal((self.batch_size, self.z_dim), 0, 1)  # normal dist for VAE
+        enc_z = tf.add(enc_z_mean,
+                       tf.multiply(tf.sqrt(tf.exp(enc_z_log_sigma_sq)), eps))  # grab our actual latent vec z
+        # generate shapes
+        rand_shapes = self.generator(z, reuse=True)
+        dec_shapes = self.generator(enc_z, reuse=True)
+        train_shapes = images
 
-            s_d, s_h, s_w = self.output_depth, self.output_height, self.output_width
-            s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_d8, s_h8, s_w8 = conv_out_size_same(s_d4, 2), conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_d16, s_h16, s_w16 = conv_out_size_same(s_d8, 2), conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
-
-            # project `z` and reshape
-            h0 = tf.reshape(
-                linear(z, self.gf_dim * 8 * s_d16 * s_h16 * s_w16, 'g_h0_lin'),
-                [-1, s_d16, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0, train=False))
-
-            h1 = deconv3d(h0, [self.batch_size, s_d8, s_h8, s_w8, self.gf_dim * 4], name='g_h1')
-            h1 = tf.nn.relu(self.g_bn1(h1, train=False))
-
-            h2 = deconv3d(h1, [self.batch_size, s_d4, s_h4, s_w4, self.gf_dim * 2], name='g_h2')
-            h2 = tf.nn.relu(self.g_bn2(h2, train=False))
-
-            h3 = deconv3d(h2, [self.batch_size, s_d2, s_h2, s_w2, self.gf_dim * 1], name='g_h3')
-            h3 = tf.nn.relu(self.g_bn3(h3, train=False))
-
-            h4 = deconv3d(h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4')
-
-            return tf.nn.tanh(h4)
+        return train_shapes, dec_shapes, rand_shapes
 
     @property
     def model_dir(self):

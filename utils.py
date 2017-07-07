@@ -7,6 +7,7 @@ import os
 import pprint
 import scipy.misc
 import numpy as np
+from glob import glob
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -78,8 +79,24 @@ def inverse_transform(images):
     return (images + 1.) / 2.
 
 
-def create_samples(sess, sdfgan, config):
-    z_sample = np.random.uniform(-1, 1, size=(config.batch_size,sdfgan.z_dim))
-    samples = sess.run(sdfgan.sampler, feed_dict={sdfgan.z: z_sample})
-    fname = os.path.join(config.sample_dir, "samples.npy")
-    np.save(fname, samples)
+def create_samples(sess, sdfgan):
+    # pick batch of training set shapes
+    data = glob(os.path.join(sdfgan.dataset_dir, sdfgan.dataset_name, sdfgan.input_fname_pattern))
+    np.random.shuffle(data)
+    batch_files = data[:sdfgan.sample_num]
+    batch = [
+        np.load(batch_file)[0, :, :, :] for batch_file in batch_files]
+    batch_images = np.array(batch).astype(np.float32)[:, :, :, :, None]
+    batch_z = np.random.normal(0, 1, [sdfgan.batch_size, sdfgan.z_dim]) \
+        .astype(np.float32)
+    train_shapes, dec_shapes, rand_shapes = sess.run([sdfgan.train_shapes, sdfgan.dec_shapes, sdfgan.rand_shapes]
+                                                     , feed_dict={sdfgan.inputs: batch_images,
+                                                                  sdfgan.z: batch_z})
+    fname_0 = os.path.join(sdfgan.sample_dir, "training_samples.npy")
+    fname_1 = os.path.join(sdfgan.sample_dir, "decoder_samples.npy")
+    fname_2 = os.path.join(sdfgan.sample_dir, "random_samples.npy")
+    np.save(fname_0, train_shapes)
+    np.save(fname_1, dec_shapes)
+    np.save(fname_2, rand_shapes)
+
+
