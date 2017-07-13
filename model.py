@@ -134,14 +134,7 @@ class SDFGAN(object):
                     gpu_I = self.inputs[gpu_start:gpu_end]  # original inputs
                     z_x_mean, z_x_log_sigma_sq = self.encoder(gpu_I)  # get z from the input
                     z_x = tf.add(z_x_mean, tf.multiply(tf.sqrt(tf.exp(z_x_log_sigma_sq)), eps)) # grab our actual latent vec z
-                    z_p = self.z[gpu_start:gpu_end]
                     gpu_EG = self.generator(z_x)  # recover from autoencoder
-                    gpu_G = self.generator(z_p, reuse=True)  # fake sample
-
-                    # discriminator
-                    gpu_D, gpu_D_logits, gpu_llayer = self.discriminator(gpu_I)
-                    gpu_D_, gpu_D_logits_, _ = self.discriminator(gpu_G, reuse=True)
-                    _, _, gpu_e_llayer = self.discriminator(gpu_EG, reuse=True)
 
                     # compatibility across different tf versions
                     def sigmoid_cross_entropy_with_logits(x, y):
@@ -151,31 +144,17 @@ class SDFGAN(object):
                             return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, targets=y)
 
                     # compute loss and accuracy
-                    # # clip values
+                    # clip values
                     gpu_kl_loss = tf.reduce_sum(-0.5 * tf.reduce_sum(1 + tf.clip_by_value(z_x_log_sigma_sq, -5.0, 5.0)
                                    - tf.square(tf.clip_by_value(z_x_mean, -5.0, 5.0))
                                    - tf.exp(tf.clip_by_value(z_x_log_sigma_sq, -5.0, 5.0)), 1))\
                                    / self.output_depth / self.output_height / self.output_width
-                    gpu_d_loss_real = tf.reduce_mean(
-                        sigmoid_cross_entropy_with_logits(
-                            gpu_D_logits[:gpu_n_eff], tf.ones_like(gpu_D[:gpu_n_eff])))
-                    gpu_d_loss_fake = tf.reduce_mean(
-                        sigmoid_cross_entropy_with_logits(
-                            gpu_D_logits_[:gpu_n_eff], tf.zeros_like(gpu_D_[:gpu_n_eff])))
-                    gpu_g_loss_gen = tf.reduce_mean(
-                        sigmoid_cross_entropy_with_logits(
-                            gpu_D_logits_[:gpu_n_eff], tf.ones_like(gpu_D_[:gpu_n_eff])))
-
-                    gpu_d_loss = gpu_d_loss_real + gpu_d_loss_fake
-                    # gpu_ll_loss = tf.reduce_sum(tf.square(gpu_llayer - gpu_e_llayer)) \
-                    #               / self.output_depth / self.output_height / self.output_width
                     # L2 Distance Metric
-                    gpu_ll_loss = 0.1 * tf.reduce_sum(tf.square(gpu_EG - gpu_I)) \
+                    gpu_l2_loss = 0.1 * tf.reduce_sum(tf.square(gpu_EG - gpu_I)) \
                                   / self.output_depth / self.output_height / self.output_width
 
-                    gpu_d_accu_real = tf.reduce_sum(tf.cast(gpu_D[:gpu_n_eff] > .5, tf.int32)) / gpu_D.get_shape()[0]
-                    gpu_d_accu_fake = tf.reduce_sum(tf.cast(gpu_D_[:gpu_n_eff] < .5, tf.int32)) / gpu_D_.get_shape()[0]
-                    gpu_d_accu = (gpu_d_accu_real + gpu_d_accu_fake) / 2
+                    gpu_e_loss = gpu_kl_loss + gpu_l2_loss
+                    gpu_g_loss = gpu_l2_loss
 
                     # compute generator field constraint loss
                     # enforce eikonal equation
