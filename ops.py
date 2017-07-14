@@ -109,6 +109,50 @@ def low_pass(input_):
     return conv
 
 
+def freq_split(s, r=16):
+    """split tensor into low freq and high freq fields
+    Input:
+    s : batch_size * n * n * n tensor
+    r: number of modes to keep for low frequency
+    
+    """
+
+    s = tf.fft3d(s)
+    dims = tf.shape(s)
+    mids = [int(dims[i] / 2) for i in range(len(dims))]
+
+    # frequency mask
+    u, v, w = tf.range(-mids[0], mids[0], 1), tf.range(-mids[1], mids[1], 1), tf.range(-mids[2], mids[2], 1)
+    U, V, W = tf.meshgrid(u, v, w)
+    D = tf.sqrt(tf.square(U) + tf.square(V) + tf.square(W))
+    lf_mask = fftshift(tf.cast(tf.less_equal(D, r * tf.ones_like(D)), tf.complex64))
+    hf_mask = tf.ones_like(lf_mask, dtype=tf.complex64) - lf_mask
+
+    # apply mask
+    s_lf = tf.multiply(s, lf_mask)
+    s_hf = tf.multiply(s, hf_mask)
+
+    s_lf = tf.real(tf.ifft3d(s_lf))
+    s_hf = tf.real(tf.ifft3d(s_hf))
+
+    return s_lf, s_hf
+
+
+def fftshift(s):
+    """assuming the zero-th dimension is batch-size"""
+    dim = len(tf.shape(s)) - 1
+    for i in range(dim):
+        j = i + 1
+        split_1, split_2 = tf.split(s, 2, axis=j)
+        s = tf.concat([split_1, split_2], axis=j)
+
+    return s
+
+
+def ifftshift(s):
+    return fftshift(s)
+
+
 def lrelu(x, leak=0.2, name="lrelu"):
     return tf.maximum(x, leak * x)
 

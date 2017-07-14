@@ -3,7 +3,7 @@ import numpy as np
 
 from model import SDFGAN
 from utils import pp, show_all_variables, create_samples
-import shutill
+import shutil
 
 import tensorflow as tf
 
