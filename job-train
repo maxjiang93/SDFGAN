@@ -2,7 +2,7 @@
 
 # variables
 PROJ_DIR=/home/maxjiang/Codes/project_sdfgan
-JOB_DIR=${PROJ_DIR}/sdfgan_data/jobs/job2-lowfreq
+JOB_DIR=${PROJ_DIR}/sdfgan_data/jobs/job3-hifreq
 
 DATASET_DIR=${PROJ_DIR}/sdfgan_data/data
 LOG_DIR=${JOB_DIR}/logs
@@ -11,15 +11,19 @@ CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 
 # execute
 python main.py \
---is_new \
 --epoch=100 \
+--batch_size=64 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
 --num_gpus=4 \
---dataset=shapenet_car_fs \
---g_learning_rate=0.005 \
---d_learning_rate=0.002 \
+--dataset=shapenet_car_freqsplit \
+--g_learning_rate=0.0005 \
+--d_learning_rate=0.0002 \
 --is_train \
---field_constraint=0
+--field_constraint=0 \
+--input_depth=64 \
+--output_depth=64 \
+--beta1=0.5 \
+--is_new

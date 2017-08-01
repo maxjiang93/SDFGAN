@@ -14,7 +14,7 @@ class SDFGAN(object):
     def __init__(self, sess, input_depth=64, input_height=64, input_width=64, is_crop=True,
                  batch_size=64, sample_num=64,
                  output_depth=64, output_height=64, output_width=64, z_dim=200, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=1, dataset_name='shapenet',
+                 c_dim=1, dataset_name='shapenet',
                  input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None,
                  num_gpus=1, field_constraint=0.1):
         """
@@ -25,8 +25,6 @@ class SDFGAN(object):
           z_dim: (optional) Dimension of dim for Z. [100]
           gf_dim: (optional) Dimension of gen filters in first conv layer. [64]
           df_dim: (optional) Dimension of discrim filters in first conv layer. [64]
-          gfc_dim: (optional) Dimension of gen units for for fully connected layer. [1024]
-          dfc_dim: (optional) Dimension of discrim units for fully connected layer. [1024]
           c_dim: (optional) Dimension of image color. For grayscale input, set to 1. [3]
         """
         self.sess = sess
@@ -48,9 +46,6 @@ class SDFGAN(object):
 
         self.gf_dim = gf_dim
         self.df_dim = df_dim
-
-        self.gfc_dim = gfc_dim
-        self.dfc_dim = dfc_dim
 
         self.c_dim = c_dim
         self.num_gpus = num_gpus
@@ -80,7 +75,7 @@ class SDFGAN(object):
         if self.is_crop:
             image_dims = [self.output_depth, self.output_height, self.output_width, self.c_dim]
         else:
-            image_dims = [self.output_depth, self.input_height, self.input_width, self.c_dim]
+            image_dims = [self.input_depth, self.input_height, self.input_width, self.c_dim]
 
         # input placeholders
         self.inputs = tf.placeholder(
@@ -217,7 +212,7 @@ class SDFGAN(object):
         # summarize variables
         self.d_sum = histogram_summary("d", self.D)
         self.d__sum = histogram_summary("d_", self.D_)
-        self.g_sum = image_summary("G", self.G[:, 32, :, :])
+        self.g_sum = image_summary("G", self.G[:, int(self.output_depth / 2), :, :])
 
         self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -284,14 +279,14 @@ class SDFGAN(object):
         self.writer = SummaryWriter(self.log_dir, self.sess.graph)
         sample_z = np.random.uniform(-1, 1, size=(self.sample_num, self.z_dim))
         sample_files = data[0:self.sample_num]
-        sample = [np.load(sample_file)[0, :, :, :] for sample_file in sample_files]
+        sample = [np.load(sample_file)[1, :, :, :] for sample_file in sample_files]
 
         if (self.is_grayscale):
             sample_inputs = np.array(sample).astype(np.float32)
         else:
             sample_inputs = np.array(sample).astype(np.float32)
 
-        counter = 1
+        counter = 0
         could_load, checkpoint_counter = self.load(self.checkpoint_dir)
         if could_load:
             counter = checkpoint_counter
@@ -307,10 +302,10 @@ class SDFGAN(object):
         for epoch in xrange(config.epoch):
             # shuffle data before training in each epoch
             np.random.shuffle(data)
-            for idx in xrange(0, batch_idxs):
+            for idx in xrange(0, batch_idxs - 1):
                 glob_batch_files = data[idx * self.glob_batch_size:(idx + 1) * self.glob_batch_size]
                 glob_batch = [
-                    np.load(batch_file)[0, :, :, :] for batch_file in glob_batch_files]
+                    np.load(batch_file)[1, :, :, :] for batch_file in glob_batch_files]
                 glob_batch_images = np.array(glob_batch).astype(np.float32)[:, :, :, :, None]
 
                 glob_batch_z = np.random.uniform(-1, 1, [self.glob_batch_size, self.z_dim]) \
@@ -325,15 +320,21 @@ class SDFGAN(object):
                 if d_accu_last_batch < .8:
                     # Update D network
                     _, summary_str = self.sess.run([d_optim, self.d_sum],
-                                                   feed_dict={self.inputs: glob_batch_images,
-                                                              self.z: glob_batch_z,
-                                                              self.n_eff: n_eff})
+                                                    feed_dict={self.inputs: glob_batch_images,
+                                                               self.z: glob_batch_z,
+                                                               self.n_eff: n_eff})
                     self.writer.add_summary(summary_str, counter)
+
+                # # Update G network
+                # _ = self.sess.run([g_optim],
+                #                   feed_dict={self.z: glob_batch_z,
+                #                              self.n_eff: n_eff})
 
                 # Update G network
                 _, summary_str = self.sess.run([g_optim, self.g_sum],
                                                feed_dict={self.z: glob_batch_z,
                                                           self.n_eff: n_eff})
+                self.writer.add_summary(summary_str, counter)
 
                 # Compute last batch accuracy and losses
                 d_accu_last_batch, errD_fake, errD_real, errG \
@@ -347,30 +348,29 @@ class SDFGAN(object):
                 now_time = time.time()
                 time_per_iter = now_time - prev_time
                 prev_time = now_time
-                eta = (total_steps - counter) * time_per_iter
+                eta = (total_steps - counter + checkpoint_counter) * time_per_iter
                 counter += 1
 
-                print("Epoch: [%2d] [%4d/%4d] time/iter: %4.4f, eta(s): %4.4f, d_loss: %.8f, g_loss: %.8f, d_accu: %.4f"
+                try:
+                    timestr = time.strftime("%H:%M:%S", time.gmtime(eta))
+                except:
+                    timestr = '?:?:?'
+
+                print("Epoch:[%3d] [%3d/%3d] Iter:[%5d] eta(h:m:s): %s, d_loss: %.8f, g_loss: %.8f, d_accu: %.4f"
                       % (epoch, idx, batch_idxs,
-                         time_per_iter, eta, errD_fake + errD_real, errG, d_accu_last_batch))
+                         counter, timestr, errD_fake + errD_real, errG, d_accu_last_batch))
 
                 if np.mod(counter, 200) == 1:
-                    try:
-                        samples, d_loss, g_loss = self.sess.run(
-                            [self.sampler, self.d_loss, self.g_loss],
-                            feed_dict={
-                                self.z: sample_z,
-                                self.inputs: sample_inputs,
-                            },
-                        )
-                        np.save(self.sample_dir+'/train_{:02d}_{:04d}.npy'
-                                .format(config.sample_dir, epoch, idx), samples)
-                        print("[Sample] d_loss: %.8f, g_loss: %.8f, d_accu: %.4f"
-                              % (d_loss, g_loss, d_accu_last_batch))
-                    except:
-                        print("Error when saving samples.")
-
-                if np.mod(counter, 200) == 2:
+                    samples = self.sess.run(
+                        [self.sampler],
+                        feed_dict={
+                            self.z: sample_z,
+                        },
+                    )
+                    np.save(self.sample_dir+'/sample_{:05d}.npy'
+                            .format(counter), samples)
+                    print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint."
+                          .format(counter, self.sample_num))
                     self.save(config.checkpoint_dir, counter)
 
         # save last checkpoint
