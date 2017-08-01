@@ -279,7 +279,7 @@ class SDFGAN(object):
         self.writer = SummaryWriter(self.log_dir, self.sess.graph)
         sample_z = np.random.uniform(-1, 1, size=(self.sample_num, self.z_dim))
         sample_files = data[0:self.sample_num]
-        sample = [np.load(sample_file)[1, :, :, :] for sample_file in sample_files]
+        sample = [np.load(sample_file)[0, :, :, :] for sample_file in sample_files]
 
         if (self.is_grayscale):
             sample_inputs = np.array(sample).astype(np.float32)
@@ -305,7 +305,7 @@ class SDFGAN(object):
             for idx in xrange(0, batch_idxs - 1):
                 glob_batch_files = data[idx * self.glob_batch_size:(idx + 1) * self.glob_batch_size]
                 glob_batch = [
-                    np.load(batch_file)[1, :, :, :] for batch_file in glob_batch_files]
+                    np.load(batch_file)[0, :, :, :] for batch_file in glob_batch_files]
                 glob_batch_images = np.array(glob_batch).astype(np.float32)[:, :, :, :, None]
 
                 glob_batch_z = np.random.uniform(-1, 1, [self.glob_batch_size, self.z_dim]) \
