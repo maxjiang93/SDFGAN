@@ -2,7 +2,7 @@
 
 # variables
 PROJ_DIR=/home/maxjiang/Codes/project_sdfgan
-JOB_DIR=${PROJ_DIR}/sdfgan_data/jobs/job3-hifreq
+JOB_DIR=${PROJ_DIR}/sdfgan_data/jobs/job3-pix2pix
 
 DATASET_DIR=${PROJ_DIR}/sdfgan_data/data
 LOG_DIR=${JOB_DIR}/logs
@@ -12,7 +12,7 @@ CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 # execute
 python main.py \
 --epoch=100 \
---batch_size=64 \
+--batch_size=4 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
@@ -22,7 +22,6 @@ python main.py \
 --g_learning_rate=0.0005 \
 --d_learning_rate=0.0002 \
 --is_train \
---field_constraint=0 \
 --input_depth=64 \
 --output_depth=64 \
 --beta1=0.5 \
