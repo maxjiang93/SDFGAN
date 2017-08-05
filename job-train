@@ -11,8 +11,9 @@ CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 
 # execute
 python main.py \
---epoch=100 \
---batch_size=4 \
+--epoch=400 \
+--batch_size=32 \
+--sample_num=32 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
@@ -24,5 +25,5 @@ python main.py \
 --is_train \
 --input_depth=64 \
 --output_depth=64 \
---beta1=0.5 \
---is_new
+--beta1=0.5
+# --is_new

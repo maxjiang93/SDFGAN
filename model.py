@@ -272,6 +272,7 @@ class Pix2Pix(object):
                 print("Epoch:[%3d] [%3d/%3d] Iter:[%5d] eta(h:m:s): %s, d_loss: %.8f, g_loss: %.8f"
                       % (epoch, idx, batch_idxs, counter, timestr, lossD, lossG))
 
+                # save checkpoint and samples every 200 steps
                 if np.mod(counter, 200) == 1:
                     sample_gen = self.sess.run(self.sampler, feed_dict={self.sample_inputs: sample_in})
                     sample = np.concatenate((np.expand_dims(sample_in, axis=0),  # 16 x 64 x 64 x 64 x 1
