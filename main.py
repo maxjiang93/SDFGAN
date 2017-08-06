@@ -26,7 +26,7 @@ flags.DEFINE_integer("output_width", None,
                      "The size of the output images to produce. If None, same value as output_depth [None]")
 flags.DEFINE_integer("c_dim", 1, "Dimension of sdf. [1]")
 flags.DEFINE_integer("sample_num", 16, "Number of samples. [16]")
-flags.DEFINE_string("test_input", None, "Path to test inputs. [None]")
+flags.DEFINE_string("test_input_path", None, "Path to test inputs. [None]")
 flags.DEFINE_integer("gan_weight", 1, "GAN weight in generator loss function. [1]")
 flags.DEFINE_integer("l1_weight", 100, "L1 weight in generator loss function. [100]")
 flags.DEFINE_string("dataset", "shapenet_freqsplit", "The name of dataset [shapenet]")
@@ -106,9 +106,10 @@ def main(_):
         if FLAGS.is_train:
             pix2pix.train(FLAGS)
         else:
-            if not pix2pix.load(FLAGS.checkpoint_dir):
+            could_load, checkpoint_counter = pix2pix.load(FLAGS.checkpoint_dir)
+            if not could_load:
                 raise Exception("[!] Train a model first, then run test mode")
-            create_samples(sess, pix2pix, FLAGS)
+            create_samples(sess, pix2pix, FLAGS, counter=checkpoint_counter)
 
 if __name__ == '__main__':
     tf.app.run()
