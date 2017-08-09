@@ -20,7 +20,7 @@ def show_all_variables():
     slim.model_analyzer.analyze_vars(model_vars, print_info=True)
 
 
-def create_samples(sess, sdfgan, config):
+def create_sdfgan_samples(sess, sdfgan, config):
     z_sample = np.random.uniform(-1, 1, size=(config.batch_size,sdfgan.z_dim))
     samples = sess.run(sdfgan.sampler, feed_dict={sdfgan.z: z_sample})
     fname = os.path.join(config.sample_dir, "samples.npy")
