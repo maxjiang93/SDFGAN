@@ -11,36 +11,27 @@ def conv_out_size_same(size, stride):
 
 
 class SDFGAN(object):
-    def __init__(self, sess, input_depth=64, input_height=64, input_width=64, is_crop=True,
-                 batch_size=64, sample_num=64,
-                 output_depth=64, output_height=64, output_width=64, z_dim=200, gf_dim=64, df_dim=64,
-                 c_dim=1, dataset_name='shapenet',
-                 input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None,
-                 num_gpus=1, field_constraint=0.1):
+    def __init__(self, sess, num_gpus=1, image_depth=64, image_height=64, image_width=64,
+                 batch_size=64, sample_num=64, z_dim=200, gf_dim=64, df_dim=64,c_dim=1, dataset_name='shapenet',
+                 input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None):
         """
 
         Args:
           sess: TensorFlow session
           batch_size: The size of batch. Should be specified before training.
-          z_dim: (optional) Dimension of dim for Z. [100]
+          z_dim: (optional) Dimension of dim for Z. [200]
           gf_dim: (optional) Dimension of gen filters in first conv layer. [64]
           df_dim: (optional) Dimension of discrim filters in first conv layer. [64]
-          c_dim: (optional) Dimension of image color. For grayscale input, set to 1. [3]
+          c_dim: (optional) Dimension of channels. For sdf input, set to 1. [3]
         """
         self.sess = sess
-        self.is_crop = is_crop
-        self.is_grayscale = (c_dim == 1)
 
         self.batch_size = batch_size
         self.sample_num = sample_num
 
-        self.input_depth = input_depth
-        self.input_height = input_height
-        self.input_width = input_width
-
-        self.output_depth = output_depth
-        self.output_height = output_height
-        self.output_width = output_width
+        self.image_depth = image_depth
+        self.image_height = image_height
+        self.image_width = image_width
 
         self.z_dim = z_dim
 
@@ -50,7 +41,6 @@ class SDFGAN(object):
         self.c_dim = c_dim
         self.num_gpus = num_gpus
         self.glob_batch_size = self.num_gpus * self.batch_size
-        self.field_constraint = field_constraint
 
         # batch normalization : deals with poor initialization helps gradient flow
         self.d_bn1 = batch_norm(name='d_bn1')
@@ -72,35 +62,29 @@ class SDFGAN(object):
 
     def build_model(self):
 
-        if self.is_crop:
-            image_dims = [self.output_depth, self.output_height, self.output_width, self.c_dim]
-        else:
-            image_dims = [self.input_depth, self.input_height, self.input_width, self.c_dim]
+        image_dims = [self.image_depth, self.image_height, self.image_width, self.c_dim]
 
         # input placeholders
         self.inputs = tf.placeholder(
             tf.float32, [self.glob_batch_size] + image_dims, name='real_images')
         self.z = tf.placeholder(
-            tf.float32, [None, self.z_dim], name='z')
-        self.n_eff = tf.placeholder(tf.int32, name='n_eff')  # overall number of effective data points
-
+            tf.float32, [None, self.z_dim], name='z')  # latent vector
         self.z_sum = histogram_summary("z", self.z)
 
+        self.n_eff = tf.placeholder(tf.int32, name='n_eff')  # overall number of effective data points
+
         # initialize global lists
-        self.G = [None] * self.num_gpus
-        self.D = [None] * self.num_gpus
+        self.G = [None] * self.num_gpus  # generator results
+        self.D = [None] * self.num_gpus  # discriminator results for real images
         self.D_logits = [None] * self.num_gpus
-        self.D_ = [None] * self.num_gpus
+        self.D_ = [None] * self.num_gpus  # discriminator results for fake images
         self.D_logits_ = [None] * self.num_gpus
         self.d_loss_real = [None] * self.num_gpus
         self.d_loss_fake = [None] * self.num_gpus
         self.d_losses = [None] * self.num_gpus
         self.g_losses = [None] * self.num_gpus
-        self.d_accus = [None] * self.num_gpus
+        self.d_accus = [None] * self.num_gpus  # discriminator accuracy
         self.n_effs = [None] * self.num_gpus
-        self.g_loss_eik = [None] * self.num_gpus
-        self.g_loss_sym = [None] * self.num_gpus
-        self.g_loss_gen = [None] * self.num_gpus
 
         # compute using multiple gpus
         with tf.variable_scope(tf.get_variable_scope()) as vscope:
@@ -138,27 +122,8 @@ class SDFGAN(object):
                     gpu_d_accu_fake = tf.reduce_sum(tf.cast(gpu_D_[:gpu_n_eff] < .5, tf.int32)) / gpu_D_.get_shape()[0]
                     gpu_d_accu = (gpu_d_accu_real + gpu_d_accu_fake) / 2
 
-                    # compute generator field constraint loss
-                    # enforce eikonal equation
-                    delta_d, delta_h, delta_w = 1 / (np.array(image_dims[:-1]) - 1)
-                    gpu_G_d1, gpu_G_d0 = gpu_G[2:, 1:-1, 1:-1], gpu_G[:-2, 1:-1, 1:-1]
-                    gpu_G_h1, gpu_G_h0 = gpu_G[1:-1, 2:, 1:-1], gpu_G[1:-1, :-2, 1:-1]
-                    gpu_G_w1, gpu_G_w0 = gpu_G[1:-1, 1:-1, 2:], gpu_G[1:-1, 1:-1, :-2]
-                    grad_G_d = tf.expand_dims((gpu_G_d1 - gpu_G_d0) / 2 / delta_d, axis=0)
-                    grad_G_h = tf.expand_dims((gpu_G_h1 - gpu_G_h0) / 2 / delta_h, axis=0)
-                    grad_G_w = tf.expand_dims((gpu_G_w1 - gpu_G_w0) / 2 / delta_w, axis=0)
-                    grad_G = tf.concat([grad_G_d, grad_G_h, grad_G_w], axis=0)
-                    grad_G_norms = tf.norm(grad_G, axis=0)
-                    grad_G_diff2 = tf.square(tf.reduce_mean(grad_G_norms)-tf.ones_like(grad_G_norms))
-                    gpu_g_loss_eik = tf.abs(tf.reduce_mean(grad_G_diff2))
-
-                    # enforce symmetry (along dim=2)
-                    gpu_left = gpu_G[:, :, :int(image_dims[2] / 2)]
-                    gpu_rite = tf.reverse(gpu_G[:, :, int(image_dims[2] / 2):], axis=[2])
-                    gpu_g_loss_sym = tf.reduce_mean(tf.square(tf.subtract(gpu_left, gpu_rite)))
-
                     # combined generator loss
-                    gpu_g_loss = gpu_g_loss_gen + (gpu_g_loss_eik + gpu_g_loss_sym) * self.field_constraint
+                    gpu_g_loss = gpu_g_loss_gen
 
                     # add gpu-wise data to global list
                     self.G[gpuid] = gpu_G
@@ -169,9 +134,6 @@ class SDFGAN(object):
                     self.d_loss_real[gpuid] = gpu_d_loss_real
                     self.d_loss_fake[gpuid] = gpu_d_loss_fake
                     self.d_losses[gpuid] = gpu_d_loss
-                    self.g_loss_eik[gpuid] = gpu_g_loss_eik
-                    self.g_loss_sym[gpuid] = gpu_g_loss_sym
-                    self.g_loss_gen[gpuid] = gpu_g_loss_gen
                     self.g_losses[gpuid] = gpu_g_loss
                     self.d_accus[gpuid] = gpu_d_accu
                     self.n_effs[gpuid] = gpu_n_eff
@@ -189,12 +151,6 @@ class SDFGAN(object):
                                 / tf.cast(self.n_eff, tf.float32) for j in range(self.num_gpus)]
         weighted_d_loss = [self.d_losses[j] * tf.cast(self.n_effs[j], tf.float32)
                            / tf.cast(self.n_eff, tf.float32) for j in range(self.num_gpus)]
-        weighted_g_loss_eik = [tf.cast(self.g_loss_eik[j], tf.float32) * tf.cast(self.n_effs[j], tf.float32)
-                                 / tf.cast(self.n_eff, tf.float32) for j in range(self.num_gpus)]
-        weighted_g_loss_sym = [tf.cast(self.g_loss_sym[j], tf.float32) * tf.cast(self.n_effs[j], tf.float32)
-                                 / tf.cast(self.n_eff, tf.float32) for j in range(self.num_gpus)]
-        weighted_g_loss_gen = [tf.cast(self.g_loss_gen[j], tf.float32) * tf.cast(self.n_effs[j], tf.float32)
-                                 / tf.cast(self.n_eff, tf.float32) for j in range(self.num_gpus)]
         weighted_g_loss = [self.g_losses[j] * tf.cast(self.n_effs[j], tf.float32)
                            / tf.cast(self.n_eff, tf.float32) for j in range(self.num_gpus)]
         weighted_d_accu = [tf.cast(self.d_accus[j], tf.float32) * tf.cast(self.n_effs[j], tf.float32)
@@ -203,24 +159,18 @@ class SDFGAN(object):
         self.d_loss_real = tf.reduce_sum(weighted_d_loss_real, axis=0)
         self.d_loss_fake = tf.reduce_sum(weighted_d_loss_fake, axis=0)
         self.d_loss = tf.reduce_sum(weighted_d_loss, axis=0)
-        self.g_loss_eik = tf.reduce_sum(weighted_g_loss_eik, axis=0)
-        self.g_loss_sym = tf.reduce_sum(weighted_g_loss_sym, axis=0)
-        self.g_loss_gen = tf.reduce_sum(weighted_g_loss_gen, axis=0)
         self.g_loss = tf.reduce_sum(weighted_g_loss, axis=0)
         self.d_accu = tf.reduce_sum(weighted_d_accu, axis=0)
 
         # summarize variables
         self.d_sum = histogram_summary("d", self.D)
         self.d__sum = histogram_summary("d_", self.D_)
-        self.g_sum = image_summary("G", self.G[:, int(self.output_depth / 2), :, :])
+        self.g_sum = image_summary("G", self.G[:, int(self.image_depth / 2), :, :])
 
         self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
         self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
 
-        self.g_loss_eik_sum = scalar_summary("g_loss_eik", self.g_loss_eik)
-        self.g_loss_sym_sum = scalar_summary("g_loss_sym", self.g_loss_sym)
-        self.g_loss_gen_sum = scalar_summary("g_loss_gen", self.g_loss_gen)
         self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
         self.d_accu_sum = scalar_summary("d_accu", self.d_accu)
 
@@ -271,16 +221,11 @@ class SDFGAN(object):
         except:
             tf.initialize_all_variables().run()
 
-        self.g_sum = merge_summary([self.z_sum, self.d__sum, self.g_loss_eik_sum, self.g_loss_sym_sum,
-                                    self.g_loss_gen_sum, self.g_sum, self.d_loss_fake_sum, self.g_loss_sum])
-        self.d_sum = merge_summary(
-            [self.z_sum, self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
+        self.g_sum = merge_summary([self.z_sum, self.d__sum, self.g_sum, self.d_loss_fake_sum, self.g_loss_sum])
+        self.d_sum = merge_summary([self.z_sum, self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
 
         self.writer = SummaryWriter(self.log_dir, self.sess.graph)
         sample_z = np.random.uniform(-1, 1, size=(self.sample_num, self.z_dim))
-        sample_files = data[0:self.sample_num]
-        sample = [np.load(sample_file)[0, :, :, :] for sample_file in sample_files]
-        sample_inputs = np.array(sample).astype(np.float32)
 
         counter = 0
         could_load, checkpoint_counter = self.load(self.checkpoint_dir)
@@ -316,9 +261,9 @@ class SDFGAN(object):
                 if d_accu_last_batch < .8:
                     # Update D network
                     _, summary_str = self.sess.run([d_optim, self.d_sum],
-                                                    feed_dict={self.inputs: glob_batch_images,
-                                                               self.z: glob_batch_z,
-                                                               self.n_eff: n_eff})
+                                                   feed_dict={self.inputs: glob_batch_images,
+                                                              self.z: glob_batch_z,
+                                                              self.n_eff: n_eff})
                     self.writer.add_summary(summary_str, counter)
 
                 # Update G network
@@ -377,7 +322,7 @@ class SDFGAN(object):
 
     def generator(self, z):
         with tf.variable_scope("generator") as scope:
-            s_d, s_h, s_w = self.output_depth, self.output_height, self.output_width
+            s_d, s_h, s_w = self.image_depth, self.image_height, self.image_width
             s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
             s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
             s_d8, s_h8, s_w8 = conv_out_size_same(s_d4, 2), conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
@@ -412,7 +357,7 @@ class SDFGAN(object):
         with tf.variable_scope("generator") as scope:
             scope.reuse_variables()
 
-            s_d, s_h, s_w = self.output_depth, self.output_height, self.output_width
+            s_d, s_h, s_w = self.image_depth, self.image_height, self.image_width
             s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
             s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
             s_d8, s_h8, s_w8 = conv_out_size_same(s_d4, 2), conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
@@ -441,7 +386,7 @@ class SDFGAN(object):
     def model_dir(self):
         return "{}_{}_{}_{}_{}".format(
             self.dataset_name, self.batch_size,
-            self.output_depth, self.output_height, self.output_width)
+            self.image_depth, self.image_height, self.image_width)
 
     def save(self, checkpoint_dir, step):
         model_name = "SDFGAN.model"

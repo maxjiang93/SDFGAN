@@ -127,7 +127,7 @@ def average_gradients(tower_grads):
      List of pairs of (gradient, variable) where the gradient has been averaged
      across all towers.
   """
-# Borrows code from 
+# Borrowed code from
 # https://github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10_multi_gpu_train.py
 
   average_grads = []
