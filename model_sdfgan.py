@@ -305,7 +305,12 @@ class SDFGAN(object):
                     self.save(config.checkpoint_dir, counter)
 
         # save last checkpoint
+        samples = self.sess.run(self.sampler,feed_dict={self.z: sample_z})
+        np.save(self.sample_dir+'/sample_{:05d}.npy'.format(counter), samples)
+        print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint.".format(counter, self.sample_num))
         self.save(config.checkpoint_dir, counter)
+        
+        print("{!] Training Complete.")
 
     def discriminator(self, image, reuse=False):
         with tf.variable_scope("discriminator") as scope:
