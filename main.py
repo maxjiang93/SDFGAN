@@ -1,9 +1,9 @@
 import os
 import numpy as np
 
-from sdfgan_model import SDFGAN
-from pix2pix_model import Pix2Pix
-from utils import pp, show_all_variables, create_samples
+from model_sdfgan import SDFGAN
+from model_pix2pix import Pix2Pix
+from utils import pp, show_all_variables, create_sdfgan_samples, create_pix2pix_samples
 import shutil
 
 import tensorflow as tf
