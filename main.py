@@ -116,7 +116,7 @@ def main(_):
             if not sdfgan.load(FLAGS.checkpoint_dir):
                 raise Exception("[!] Could not load SDFGAN model. Train first, then run test mode.")
             if not pix2pix.load(FLAGS.checkpoint_dir):
-                raise Exception("[!] Could not load Pix2Pix model. Train first, then run test mdoe.")
+                raise Exception("[!] Could not load Pix2Pix model. Train first, then run test mode.")
         else:
             raise Exception("[!] Model must be 'sdfgan' or 'pix2pix'.")
 
