@@ -310,7 +310,7 @@ class SDFGAN(object):
         print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint.".format(counter, self.sample_num))
         self.save(config.checkpoint_dir, counter)
         
-        print("{!] Training Complete.")
+        print("{!] Training of SDFGAN Complete.")
 
     def discriminator(self, image, reuse=False):
         with tf.variable_scope("discriminator") as scope:
