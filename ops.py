@@ -84,73 +84,6 @@ def deconv3d(input_, output_shape,
             return deconv, w, biases
         else:
             return deconv
-        
-        
-def gaussian_kernel(r=3.0, sigma=1):
-    window_size = tf.cast(r * 2 + 1, tf.int32)
-    xlin = tf.lin_space(-r, r, window_size)
-    ylin = tf.lin_space(-r, r, window_size)
-    zlin = tf.lin_space(-r, r, window_size)
-    X, Y, Z = tf.meshgrid(xlin, ylin, zlin)
-    h = 1/(2*np.pi*sigma**2)*tf.exp(-(tf.square(X)+tf.square(Y)+tf.square(Z))/sigma**2)
-    sca = tf.reduce_sum(tf.reduce_sum(tf.reduce_sum(h)))
-    h = h / sca
-    
-    return tf.expand_dims(tf.expand_dims(h, -1), -1)
-
-
-def low_pass(input_):
-    r = 3.0
-    gkernel = gaussian_kernel()
-    # pad the input tensor
-    pad_input_ = tf.pad(input_, [[0, 0], [3, 3], [3, 3], [3, 3], [0, 0]], mode="REFLECT")
-    conv = tf.nn.conv3d(pad_input_, gkernel, strides=[1, 1, 1, 1, 1], padding='VALID')
-        
-    return conv
-
-
-def freq_split(s, r=16):
-    """split tensor into low freq and high freq fields
-    Input:
-    s : batch_size * n * n * n tensor
-    r: number of modes to keep for low frequency
-    
-    """
-
-    s = tf.fft3d(s)
-    dims = tf.shape(s)
-    mids = [int(dims[i] / 2) for i in range(len(dims))]
-
-    # frequency mask
-    u, v, w = tf.range(-mids[0], mids[0], 1), tf.range(-mids[1], mids[1], 1), tf.range(-mids[2], mids[2], 1)
-    U, V, W = tf.meshgrid(u, v, w)
-    D = tf.sqrt(tf.square(U) + tf.square(V) + tf.square(W))
-    lf_mask = fftshift(tf.cast(tf.less_equal(D, r * tf.ones_like(D)), tf.complex64))
-    hf_mask = tf.ones_like(lf_mask, dtype=tf.complex64) - lf_mask
-
-    # apply mask
-    s_lf = tf.multiply(s, lf_mask)
-    s_hf = tf.multiply(s, hf_mask)
-
-    s_lf = tf.real(tf.ifft3d(s_lf))
-    s_hf = tf.real(tf.ifft3d(s_hf))
-
-    return s_lf, s_hf
-
-
-def fftshift(s):
-    """assuming the zero-th dimension is batch-size"""
-    dim = len(tf.shape(s)) - 1
-    for i in range(dim):
-        j = i + 1
-        split_1, split_2 = tf.split(s, 2, axis=j)
-        s = tf.concat([split_1, split_2], axis=j)
-
-    return s
-
-
-def ifftshift(s):
-    return fftshift(s)
 
 
 def lrelu(x, leak=0.2, name="lrelu"):
@@ -194,6 +127,9 @@ def average_gradients(tower_grads):
      List of pairs of (gradient, variable) where the gradient has been averaged
      across all towers.
   """
+# Borrows code from 
+# https://github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10_multi_gpu_train.py
+
   average_grads = []
   for grad_and_vars in zip(*tower_grads):
     # Note that each grad_and_vars looks like the following:
