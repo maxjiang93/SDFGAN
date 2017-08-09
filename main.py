@@ -38,7 +38,7 @@ flags.DEFINE_integer("l1_weight", 100, "L1 weight in generator loss function. [1
 
 # testing flags
 flags.DEFINE_integer("sample_num", 16, "Number of samples. [16]")
-flags.DEFINE_string("test_input_path", None, "Path to test inputs. [None]")
+flags.DEFINE_string("test_from_input_path", None, "Path to test inputs. [None]")
 
 FLAGS = flags.FLAGS
 
@@ -66,6 +66,10 @@ def main(_):
     # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     run_config = tf.ConfigProto()
     run_config.gpu_options.allow_growth = True
+    
+    # set random seed
+    tf.set_random_seed(FLAGS.random_seed)
+    np.random.seed(FLAGS.random_seed)
 
     with tf.Session(config=run_config) as sess:
         if not (FLAGS.model == pix2pix' and FLAGS.is_train):
@@ -113,10 +117,11 @@ def main(_):
         elif FLAGS.model == 'pix2pix' and FLAGS.is_train:
             pix2pix.train(FLAGS)
         elif not FLAGS.is_train:  # test mode
-            if not sdfgan.load(FLAGS.checkpoint_dir):
-                raise Exception("[!] Could not load SDFGAN model. Train first, then run test mode.")
             if not pix2pix.load(FLAGS.checkpoint_dir):
                 raise Exception("[!] Could not load Pix2Pix model. Train first, then run test mode.")
+            if FLAGS.test_from_input_path is None:
+                # generate a sample from sdfgan first
+                
         else:
             raise Exception("[!] Model must be 'sdfgan' or 'pix2pix'.")
 
