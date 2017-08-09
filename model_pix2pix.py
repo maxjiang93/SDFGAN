@@ -275,9 +275,9 @@ class Pix2Pix(object):
                 # save checkpoint and samples every 200 steps
                 if np.mod(counter, 200) == 1:
                     sample_gen = self.sess.run(self.sampler, feed_dict={self.sample_inputs: sample_in})
-                    sample = np.concatenate((np.expand_dims(sample_in[:, :, :, :, 0], axis=0),  # sample_num x 64 x 64 x 64
-                                             np.expand_dims(sample_tg[:, :, :, :, 0], axis=0),  # sample_num x 64 x 64 x 64
-                                             np.expand_dims(sample_gen[:, :, :, :, 0], axis=0)), axis=0)  # sample_num x 64 x 64 x 64
+                    sample = np.concatenate((np.expand_dims(sample_in, axis=0),  # sample_num x 64 x 64 x 64 x 1
+                                             np.expand_dims(sample_tg, axis=0),  # sample_num x 64 x 64 x 64 x 1
+                                             np.expand_dims(sample_gen, axis=0)), axis=0)  # sample_num x 64 x 64 x 64 x 1
                     np.save(self.sample_dir+'/sample_{:05d}.npy'
                             .format(counter), sample)
                     print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint."
