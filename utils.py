@@ -25,3 +25,12 @@ def create_sdfgan_samples(sess, sdfgan, config):
     samples = sess.run(sdfgan.sampler, feed_dict={sdfgan.z: z_sample})
     fname = os.path.join(config.sample_dir, "samples.npy")
     np.save(fname, samples)
+
+def create_pix2pix_samples(sess, pix2pix, config):
+    sample_in = np.load(config.test_input_path).astype(np.float32)
+    if len(sample_in.shape) == 4:
+        sample_in = np.expand_dims(sample_in, axis=-1)
+    samples = sess.run(pix2pix.sampler, feed_dict={pix2pix.sample_inputs: sample_in})
+    fname = os.path.join(config.sample_dir, 'test_{:05d}.npy'.format(counter))
+    print("Writing test results to " + fname)
+    np.save(fname, samples)
