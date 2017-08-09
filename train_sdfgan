@@ -11,7 +11,7 @@ CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 
 # execute
 python main.py \
---epoch=100 \
+--epoch=500 \
 --batch_size=64 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
