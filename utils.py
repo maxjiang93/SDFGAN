@@ -19,6 +19,8 @@ def show_all_variables():
 
 def create_samples(sess, pix2pix, config, counter):
     sample_in = np.load(config.test_input_path).astype(np.float32)
+    if len(sample_in.shape) == 4:
+        sample_in = np.expand_dims(sample_in, axis=-1)
     samples = sess.run(pix2pix.sampler, feed_dict={pix2pix.sample_inputs: sample_in})
     fname = os.path.join(config.sample_dir, 'test_{:05d}.npy'.format(counter))
     print("Writing test results to " + fname)

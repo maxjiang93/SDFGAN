@@ -2,18 +2,20 @@
 
 # variables
 PROJ_DIR=/home/maxjiang/Codes/project_sdfgan
-JOB_DIR=${PROJ_DIR}/sdfgan/jobs/job0-shapenet-car
+JOB_DIR=${PROJ_DIR}/sdfgan_data/jobs/job3-pix2pix
 
-DATASET_DIR=${PROJ_DIR}/sdfgan/data
+DATASET_DIR=${PROJ_DIR}/sdfgan_data/data
 LOG_DIR=${JOB_DIR}/logs
 SAMPLE_DIR=${JOB_DIR}/samples
 CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 
 # execute
 python main.py \
---batch_size=64 \
+--batch_size=32 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
---dataset=shapenet_car
+--dataset=shapenet_car_freqsplit \
+--sample_num=64 \
+--test_input_path=/home/maxjiang/Codes/project_sdfgan/sdfgan_data/jobs/job5-sdfgan/samples/sample_06401_m16.npy
