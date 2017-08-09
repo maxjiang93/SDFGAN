@@ -21,10 +21,12 @@ def show_all_variables():
 
 
 def create_sdfgan_samples(sess, sdfgan, config):
-    z_sample = np.random.uniform(-1, 1, size=(config.batch_size,sdfgan.z_dim))
+    z_sample = np.random.uniform(-1, 1, size=(config.sample_num,sdfgan.z_dim))
     samples = sess.run(sdfgan.sampler, feed_dict={sdfgan.z: z_sample})
-    fname = os.path.join(config.sample_dir, "samples.npy")
+    fname = os.path.join(config.sample_dir, "sdfgan_final_samples.npy")
     np.save(fname, samples)
+    
+    return fname
 
 def create_pix2pix_samples(sess, pix2pix, config):
     sample_in = np.load(config.test_input_path).astype(np.float32)
