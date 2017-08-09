@@ -280,11 +280,7 @@ class SDFGAN(object):
         sample_z = np.random.uniform(-1, 1, size=(self.sample_num, self.z_dim))
         sample_files = data[0:self.sample_num]
         sample = [np.load(sample_file)[0, :, :, :] for sample_file in sample_files]
-
-        if (self.is_grayscale):
-            sample_inputs = np.array(sample).astype(np.float32)
-        else:
-            sample_inputs = np.array(sample).astype(np.float32)
+        sample_inputs = np.array(sample).astype(np.float32)
 
         counter = 0
         could_load, checkpoint_counter = self.load(self.checkpoint_dir)
@@ -295,7 +291,7 @@ class SDFGAN(object):
             print(" [!] Load failed...")
 
         d_accu_last_batch = .5
-        batch_idxs = int(math.ceil(min(len(data), config.train_size) / self.glob_batch_size))
+        batch_idxs = int(math.ceil(min(len(data), config.train_size) / self.glob_batch_size)) - 1
         total_steps = config.epoch * batch_idxs
         prev_time = -np.inf
 
@@ -324,11 +320,6 @@ class SDFGAN(object):
                                                                self.z: glob_batch_z,
                                                                self.n_eff: n_eff})
                     self.writer.add_summary(summary_str, counter)
-
-                # # Update G network
-                # _ = self.sess.run([g_optim],
-                #                   feed_dict={self.z: glob_batch_z,
-                #                              self.n_eff: n_eff})
 
                 # Update G network
                 _, summary_str = self.sess.run([g_optim, self.g_sum],
@@ -360,15 +351,10 @@ class SDFGAN(object):
                       % (epoch, idx, batch_idxs,
                          counter, timestr, errD_fake + errD_real, errG, d_accu_last_batch))
 
+                # save model and samples every 200 iterations
                 if np.mod(counter, 200) == 1:
-                    samples = self.sess.run(
-                        [self.sampler],
-                        feed_dict={
-                            self.z: sample_z,
-                        },
-                    )
-                    np.save(self.sample_dir+'/sample_{:05d}.npy'
-                            .format(counter), samples)
+                    samples = self.sess.run(self.sampler,feed_dict={self.z: sample_z})
+                    np.save(self.sample_dir+'/sample_{:05d}.npy'.format(counter), samples)
                     print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint."
                           .format(counter, self.sample_num))
                     self.save(config.checkpoint_dir, counter)
