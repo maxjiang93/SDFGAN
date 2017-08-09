@@ -467,8 +467,8 @@ class Pix2Pix(object):
 
     @property
     def model_dir(self):
-        return "{}_{}_{}_{}_{}".format(
-            self.dataset_name, self.batch_size,
+        return "Pix2Pix" + "{}_{}_{}_{}_{}".format(
+            self.dataset_name.replace("_freqsplit", ""), self.batch_size,
             self.output_depth, self.output_height, self.output_width)
 
     def save(self, checkpoint_dir, step):
