@@ -42,11 +42,6 @@ def main(_):
     if FLAGS.image_width is None:
         FLAGS.image_width = FLAGS.image_depth
 
-    if FLAGS.output_height is None:
-        FLAGS.output_height = FLAGS.output_depth
-    if FLAGS.output_width is None:
-        FLAGS.output_width = FLAGS.output_depth
-
     if FLAGS.is_new:
         if os.path.exists(FLAGS.checkpoint_dir):
             shutil.rmtree(FLAGS.checkpoint_dir)

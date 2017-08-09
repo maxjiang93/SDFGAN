@@ -179,7 +179,7 @@ class SDFGAN(object):
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-        self.sampler = self.sampler(self.z)
+        self.sampler = self.generator(self.z, reuse=True)
         self.saver = tf.train.Saver()
 
     def train(self, config):
@@ -320,8 +320,11 @@ class SDFGAN(object):
 
             return tf.nn.sigmoid(h4), h4
 
-    def generator(self, z):
+    def generator(self, z, reuse=False):
         with tf.variable_scope("generator") as scope:
+            if reuse:
+                scope.reuse_variables()
+
             s_d, s_h, s_w = self.image_depth, self.image_height, self.image_width
             s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
             s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
@@ -350,35 +353,6 @@ class SDFGAN(object):
 
             h4, self.h4_w, self.h4_b = deconv3d(
                 h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4', with_w=True)
-
-            return tf.nn.tanh(h4)
-
-    def sampler(self, z):
-        with tf.variable_scope("generator") as scope:
-            scope.reuse_variables()
-
-            s_d, s_h, s_w = self.image_depth, self.image_height, self.image_width
-            s_d2, s_h2, s_w2 = conv_out_size_same(s_d, 2), conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_d4, s_h4, s_w4 = conv_out_size_same(s_d2, 2), conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_d8, s_h8, s_w8 = conv_out_size_same(s_d4, 2), conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_d16, s_h16, s_w16 = conv_out_size_same(s_d8, 2), conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
-
-            # project `z` and reshape
-            h0 = tf.reshape(
-                linear(z, self.gf_dim * 8 * s_d16 * s_h16 * s_w16, 'g_h0_lin'),
-                [-1, s_d16, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0, train=False))
-
-            h1 = deconv3d(h0, [self.batch_size, s_d8, s_h8, s_w8, self.gf_dim * 4], name='g_h1')
-            h1 = tf.nn.relu(self.g_bn1(h1, train=False))
-
-            h2 = deconv3d(h1, [self.batch_size, s_d4, s_h4, s_w4, self.gf_dim * 2], name='g_h2')
-            h2 = tf.nn.relu(self.g_bn2(h2, train=False))
-
-            h3 = deconv3d(h2, [self.batch_size, s_d2, s_h2, s_w2, self.gf_dim * 1], name='g_h3')
-            h3 = tf.nn.relu(self.g_bn3(h3, train=False))
-
-            h4 = deconv3d(h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4')
 
             return tf.nn.tanh(h4)
 
