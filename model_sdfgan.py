@@ -363,7 +363,7 @@ class SDFGAN(object):
 
     @property
     def model_dir(self):
-        return "{}_{}_{}_{}_{}".format(
+        return "SDFGAN_" + "{}_{}_{}_{}_{}".format(
             self.dataset_name, self.batch_size,
             self.image_depth, self.image_height, self.image_width)
 
