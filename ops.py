@@ -37,13 +37,19 @@ class batch_norm(object):
                                             is_training=train,
                                             scope=self.name)
 
+    
+def batchnorm(input, name="batchnorm"):
+    with tf.variable_scope(name):
+        # this block looks like it has 3 inputs on the graph unless we do this
+        input = tf.identity(input)
 
-def conv_cond_concat(x, y):
-    """Concatenate conditioning vector on feature map axis."""
-    x_shapes = x.get_shape()
-    y_shapes = y.get_shape()
-    return concat([
-        x, y * tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])], 3)
+        channels = input.get_shape()[-1]
+        offset = tf.get_variable("offset", [channels], dtype=tf.float32, initializer=tf.zeros_initializer())
+        scale = tf.get_variable("scale", [channels], dtype=tf.float32, initializer=tf.random_normal_initializer(1.0, 0.02))
+        mean, variance = tf.nn.moments(input, axes=[0, 1, 2, 3], keep_dims=False)
+        variance_epsilon = 1e-5
+        normalized = tf.nn.batch_normalization(input, mean, variance, offset, scale, variance_epsilon=variance_epsilon)
+        return normalized
 
 
 def conv3d(input_, output_dim,
