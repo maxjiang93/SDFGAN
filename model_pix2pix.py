@@ -10,13 +10,10 @@ EPS = 1e-12
 
 
 class Pix2Pix(object):
-    def __init__(self, sess, input_depth=64, input_height=64, input_width=64,
-                 batch_size=64, sample_num=64,
-                 output_depth=64, output_height=64, output_width=64, gf_dim=64, df_dim=64,
-                 gan_weight=1, l1_weight=100,
-                 c_dim=1, dataset_name='shapenet_freqsplit',
-                 input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None,
-                 num_gpus=1):
+    def __init__(self, sess, image_depth=64, image_height=64, image_width=64,
+                 batch_size=64, sample_num=64, gf_dim=64, df_dim=64, gan_weight=1, l1_weight=100,
+                 c_dim=1, dataset_name='shapenet_freqsplit', num_gpus=1,
+                 input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None):
         """
 
         Args:
@@ -31,13 +28,9 @@ class Pix2Pix(object):
         self.batch_size = batch_size
         self.sample_num = sample_num
 
-        self.input_depth = input_depth
-        self.input_height = input_height
-        self.input_width = input_width
-
-        self.output_depth = output_depth
-        self.output_height = output_height
-        self.output_width = output_width
+        self.image_depth = image_depth
+        self.image_height = image_height
+        self.image_width = image_width
 
         self.gf_dim = gf_dim
         self.df_dim = df_dim
@@ -58,7 +51,7 @@ class Pix2Pix(object):
 
     def build_model(self):
 
-        image_dims = [self.input_depth, self.input_height, self.input_width, self.c_dim]
+        image_dims = [self.image_depth, self.image_height, self.image_width, self.c_dim]
 
         # input placeholders
         self.inputs = tf.placeholder(
@@ -140,7 +133,7 @@ class Pix2Pix(object):
         # summarize variables
         self.d_sum = histogram_summary("d", self.D)
         self.d__sum = histogram_summary("d_", self.D_)
-        self.g_sum = image_summary("G", self.G[:, int(self.output_depth / 2), :, :])
+        self.g_sum = image_summary("G", self.G[:, int(self.image_depth / 2), :, :])
 
         self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
 
@@ -469,7 +462,7 @@ class Pix2Pix(object):
     def model_dir(self):
         return "Pix2Pix" + "{}_{}_{}_{}_{}".format(
             self.dataset_name.replace("_freqsplit", ""), self.batch_size,
-            self.output_depth, self.output_height, self.output_width)
+            self.image_depth, self.image_height, self.image_width)
 
     def save(self, checkpoint_dir, step):
         model_name = "SDFGAN.model"

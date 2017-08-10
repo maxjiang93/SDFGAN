@@ -110,6 +110,47 @@ def linear(input_, output_size, name='linear', stddev=0.02, bias_start=0.0, with
             return tf.matmul(input_, matrix) + bias
 
 
+def freq_split(s, r=8, mask_type='boxed'):
+    s = np.fft.fftn(s)
+    dims = s.shape
+    mids = [int(dims[i] / 2) for i in range(len(dims))]
+
+    # frequency mask
+    if mask_type == 'circular':
+        U, V, W = np.mgrid[-mids[0]:mids[0], -mids[1]:mids[1], -mids[2]:mids[2]]
+        D = np.sqrt(np.square(U) + np.square(V) + np.square(W))
+        lf_mask = np.fft.ifftshift(np.less_equal(D, r * np.ones_like(D)).astype(np.complex_))
+        hf_mask = np.ones_like(lf_mask, dtype=np.complex_) - lf_mask
+
+    elif mask_type == 'boxed':
+        U, V, W = np.mgrid[-mids[0]:mids[0], -mids[1]:mids[1], -mids[2]:mids[2]]
+        mask = np.array([U < r, U >= -r, V < r, V >= -r, W < r, W >= -r])
+        lf_mask = np.fft.ifftshift(np.all(mask, axis=0).astype(np.complex_))
+        hf_mask = np.ones_like(lf_mask, dtype=np.complex_) - lf_mask
+
+    else:
+        raise Exception('mask_type undefined.')
+
+    # apply mask
+    s_lf = np.multiply(s, lf_mask)
+    s_hf = np.multiply(s, hf_mask)
+
+    s_lf = np.real(np.fft.ifftn(s_lf))
+    s_hf = np.real(np.fft.ifftn(s_hf))
+
+    return s_lf, s_hf
+
+
+def batch_lowpass(s_batch, r=8, mask_type='boxed'):
+    assert len(s_batch.shape) > 3
+    process_list = []
+    for i in range(s_batch.shape[0]):
+        s_lf, _ = freq_split(s_batch, r=r, mask_type=mask_type)
+        process_list.append(s_lf)
+
+    return np.array(process_list)
+
+
 def pad_glob_batch(glob_batch_images, glob_batch_size):
     """pad tensor with zeros if smaller than a full batch"""
     pad_shape = [j for j in glob_batch_images.shape]

@@ -1,9 +1,7 @@
-import os
-import numpy as np
-
 from model_sdfgan import SDFGAN
 from model_pix2pix import Pix2Pix
-from utils import pp, show_all_variables, create_sdfgan_samples, create_pix2pix_samples
+from utils import *
+from ops import batch_lowpass
 import shutil
 
 import tensorflow as tf
@@ -37,7 +35,7 @@ flags.DEFINE_integer("gan_weight", 1, "GAN weight in generator loss function. [1
 flags.DEFINE_integer("l1_weight", 100, "L1 weight in generator loss function. [100]")
 
 # testing flags
-flags.DEFINE_integer("sample_num", 16, "Number of samples. [16]")
+flags.DEFINE_integer("sample_num", 64, "Number of samples. [16]")
 flags.DEFINE_string("test_from_input_path", None, "Path to test inputs. [None]")
 
 FLAGS = flags.FLAGS
@@ -72,12 +70,12 @@ def main(_):
     np.random.seed(FLAGS.random_seed)
 
     with tf.Session(config=run_config) as sess:
-        if not (FLAGS.model == pix2pix' and FLAGS.is_train):
+        if not (FLAGS.model == 'pix2pix' and FLAGS.is_train):
             sdfgan = SDFGAN(
                 sess,
                 image_depth=FLAGS.image_depth,
-                image_width=FLAGS.image_width,
                 image_height=FLAGS.image_height,
+                image_width=FLAGS.image_width,
                 batch_size=FLAGS.batch_size,
                 sample_num=FLAGS.batch_size,
                 c_dim=FLAGS.c_dim,
@@ -94,9 +92,9 @@ def main(_):
         if not (FLAGS.model == 'sdfgan' and FLAGS.is_train):
             pix2pix = Pix2Pix(
                 sess,
-                input_depth=FLAGS.image_depth,
-                input_width=FLAGS.image_width,
-                input_height=FLAGS.image_height,
+                image_depth=FLAGS.image_depth,
+                image_height=FLAGS.image_height,
+                image_width=FLAGS.image_width,
                 batch_size=FLAGS.batch_size,
                 sample_num=FLAGS.sample_num,
                 gan_weight=FLAGS.gan_weight,
@@ -135,7 +133,19 @@ def main(_):
                 FLAGS.test_from_input_path = create_sdfgan_samples(sess, sdfgan, FLAGS)
             
             # postprocess samples (low-pass filter)
-            
+            sdf = np.squeeze(np.load(FLAGS.test_from_input_path), axis=-1)
+            sdf_lf = batch_lowpass(sdf)
+
+            # create and save final samples
+            sdf_hf = create_pix2pix_samples(sess, pix2pix, sdf_lf)
+            sdf_all = sdf_lf + sdf_hf
+            sdf_save = np.array([sdf_all, sdf_lf, sdf_hf])
+            fname = os.path.join(FLAGS.sample_dir, "full_final_samples.npy")
+            np.save(fname, sdf_save)
+            print("Saving final full samples to {0}, "
+                  "shape: {1} (combine_freq/low_freq/hi_freq, sample_num, dim0, dim1, dim2)"
+                  .format(fname, sdf_save.shape))
+
         else:
             raise Exception("[!] Model must be 'sdfgan' or 'pix2pix'.")
 

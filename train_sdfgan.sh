@@ -12,10 +12,17 @@ CHECKPOINT_DIR=${JOB_DIR}/checkpoint
 
 # execute
 python main.py \
+--model=sdfgan \
+--is_train \
+--epoch=500 \
 --batch_size=64 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
+--num_gpus=4 \
 --dataset=shapenet_plane \
---sample_num=64
+--g_learning_rate=0.0005 \
+--d_learning_rate=0.0002 \
+--image_depth=64 \
+--beta1=0.5 \
