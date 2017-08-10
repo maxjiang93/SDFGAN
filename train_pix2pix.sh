@@ -21,7 +21,7 @@ python main.py \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
 --num_gpus=4 \
---dataset=shapenet_plane_freqsplit \
+--dataset=synset_02958343_car_freqsplit \
 --g_learning_rate=0.0005 \
 --d_learning_rate=0.0002 \
 --gan_weight=1 \
