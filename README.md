@@ -47,6 +47,9 @@ the above code will run the freqsplit algorithm on multiple threads. Trailing 0 
 ```
 ./test_all.sh
 ```
+### Post processing for mesh
+Codes for postprocessing the results to create mesh is not including in this current repository. However, it can be easily achieved using a Marching-Cubes Algorithm. The mesh in the example above is further post-processed using 3 steps of Laplacian smoothing, quadratic mesh decimation by half, and hole-filling for the holes at the front and back as a result of boundary effects caused by the limitations of the bounding box.
+
 ## Open Source Code Credits
 Borrows code from the following repositories:
  * (DCGAN-tensorflow)(http://carpedm20.github.io/) repository by Taehoon Kim
