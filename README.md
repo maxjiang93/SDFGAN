@@ -1,6 +1,7 @@
 # 3D-SDFGAN
 3D Signed Distance Function Based Generative Adversarial Networks  
 This study seeks to generate realistic looking, mesh-based 3D models by using GANs.
+
 ![Image of Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.png)
 
 ### Downloading the dataset
