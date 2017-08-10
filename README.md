@@ -4,7 +4,7 @@ This study seeks to generate realistic looking, mesh-based 3D models by using GA
 
 ![Image of Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.png)
 
-![Example 3D Model](https://github.com/skalnik/secret-bear-clip/blob/master/stl/clip.stl)
+![3D Model of Above Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.stl)
 ### Collecting the dataset
 First, define the project directory to store the data and computed results (checkpoints, logs, samples). Change the project directory, job name and dataset to train in the file `define_path.sh`. These parameters will be called globally throughout the training and testing:
 ```bash
