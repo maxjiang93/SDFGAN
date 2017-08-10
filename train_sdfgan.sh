@@ -21,7 +21,7 @@ python main.py \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
 --num_gpus=4 \
---dataset=shapenet_plane \
+--dataset=synset_02958343_car \
 --g_learning_rate=0.0005 \
 --d_learning_rate=0.0002 \
 --image_depth=64 \
