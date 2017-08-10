@@ -26,3 +26,4 @@ python main.py \
 --d_learning_rate=0.0002 \
 --image_depth=64 \
 --beta1=0.5 \
+--is_new

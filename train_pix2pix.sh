@@ -15,7 +15,7 @@ python main.py \
 --model=pix2pix \
 --is_train \
 --epoch=500 \
---batch_size=64 \
+--batch_size=32 \
 --dataset_dir=${DATASET_DIR} \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
@@ -27,4 +27,4 @@ python main.py \
 --gan_weight=1 \
 --l1_weight=100 \
 --image_depth=64 \
---beta1=0.5
+--beta1=0.5 \

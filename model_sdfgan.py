@@ -57,8 +57,8 @@ class SDFGAN(object):
         self.input_fname_pattern = input_fname_pattern
         self.checkpoint_dir = checkpoint_dir
         self.dataset_dir = dataset_dir
-        self.log_dir = log_dir
-        self.sample_dir = sample_dir
+        self.log_dir = os.path.join(log_dir, "sdfgan_log")
+        self.sample_dir = os.path.join(sample_dir, "sdfgan_sample")
         self.build_model()
 
     def build_model(self):
@@ -314,7 +314,7 @@ class SDFGAN(object):
         print("{!] Training of SDFGAN Complete.")
 
     def discriminator(self, image, reuse=False):
-        with tf.variable_scope("discriminator") as scope:
+        with tf.variable_scope("sdfgan_discriminator") as scope:
             if reuse:
                 scope.reuse_variables()
 
@@ -327,7 +327,7 @@ class SDFGAN(object):
             return tf.nn.sigmoid(h4), h4
 
     def generator(self, z, reuse=False):
-        with tf.variable_scope("generator") as scope:
+        with tf.variable_scope("sdfgan_generator") as scope:
             if reuse:
                 scope.reuse_variables()
 
@@ -364,8 +364,8 @@ class SDFGAN(object):
 
     @property
     def model_dir(self):
-        return "SDFGAN_" + "{}_{}_{}_{}_{}".format(
-            self.dataset_name, self.batch_size,
+        return "SDFGAN_" + "{}_{}_{}_{}".format(
+            self.dataset_name,
             self.image_depth, self.image_height, self.image_width)
 
     def save(self, checkpoint_dir, step):

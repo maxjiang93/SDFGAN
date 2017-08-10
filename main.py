@@ -29,7 +29,7 @@ flags.DEFINE_string("log_dir", "logs", "Directory name to save the log files [lo
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_integer("num_gpus", 1, "Number of GPUs to use [1]")
 flags.DEFINE_integer("random_seed", 1, "Random seed [1]")
-flags.DEFINE_integer("save_inverval", 200, "Interval in steps for saving model and samples [200]")
+flags.DEFINE_integer("save_interval", 200, "Interval in steps for saving model and samples [200]")
 
 # pix2pix specific training flags
 flags.DEFINE_integer("gan_weight", 1, "GAN weight in generator loss function. [1]")
@@ -70,9 +70,7 @@ def main(_):
     tf.set_random_seed(FLAGS.random_seed)
     np.random.seed(FLAGS.random_seed)
 
-    with tf.Session(config=run_config) as sess:
-        if not (FLAGS.model == 'pix2pix' and FLAGS.is_train):
-            sdfgan = SDFGAN(
+    init_sdfgan = lambda sess: SDFGAN(
                 sess,
                 image_depth=FLAGS.image_depth,
                 image_height=FLAGS.image_height,
@@ -88,11 +86,8 @@ def main(_):
                 sample_dir=FLAGS.sample_dir,
                 num_gpus=FLAGS.num_gpus,
                 save_interval=FLAGS.save_interval)
-       
-            show_all_variables()
-        
-        if not (FLAGS.model == 'sdfgan' and FLAGS.is_train):
-            pix2pix = Pix2Pix(
+
+    init_pix2pix = lambda sess: Pix2Pix(
                 sess,
                 image_depth=FLAGS.image_depth,
                 image_height=FLAGS.image_height,
@@ -111,46 +106,66 @@ def main(_):
                 num_gpus=FLAGS.num_gpus,
                 save_interval=FLAGS.save_interval)
 
+    # Train SDFGAN
+    if FLAGS.model == 'sdfgan' and FLAGS.is_train:
+        with tf.Session(config=run_config) as sess:
+            sdfgan = init_sdfgan(sess)
             show_all_variables()
-                
-        if FLAGS.model == 'sdfgan' and FLAGS.is_train:
-            os.makedirs(os.path.join(FLAGS.sample_dir, "sdfgan_sample"))
-            os.makedirs(os.path.join(FLAGS.log_dir, "sdfgan_log"))    
+            if not os.path.exists(os.path.join(FLAGS.sample_dir, "sdfgan_sample")):
+                os.makedirs(os.path.join(FLAGS.sample_dir, "sdfgan_sample"))
+            if not os.path.exists(os.path.join(FLAGS.sample_dir, "sdfgan_log")):
+                os.makedirs(os.path.join(FLAGS.log_dir, "sdfgan_log"))
             sdfgan.train(FLAGS)
-                
-        elif FLAGS.model == 'pix2pix' and FLAGS.is_train:
-            os.makedirs(os.path.join(FLAGS.sample_dir, "pix2pix_sample"))
-            os.makedirs(os.path.join(FLAGS.log_dir, "pix2pix_log"))
+
+    # Train Pix2Pix
+    elif FLAGS.model == 'pix2pix' and FLAGS.is_train:
+        with tf.Session(config=run_config) as sess:
+            pix2pix = init_pix2pix(sess)
+            show_all_variables()
+            if not os.path.exists(os.path.join(FLAGS.sample_dir, "pix2pix_sample")):
+                os.makedirs(os.path.join(FLAGS.sample_dir, "pix2pix_sample"))
+            if not os.path.exists(os.path.join(FLAGS.log_dir, "pix2pix_log")):
+                os.makedirs(os.path.join(FLAGS.log_dir, "pix2pix_log"))
             pix2pix.train(FLAGS)
-                
-        elif not FLAGS.is_train:  # test mode
-            # load pix2pix network
-            if not pix2pix.load(FLAGS.checkpoint_dir):
-                raise Exception("[!] Could not load Pix2Pix model. Train first, then run test mode.")
-                
-            # load sdfgan network if necessary
-            if FLAGS.test_from_input_path is None:
+
+    # Test entire network
+    elif not FLAGS.is_train:
+        # load sdfgan network to create new samples if necessary
+        if FLAGS.test_from_input_path is None:
+            with tf.Session(config=run_config) as sess_0:
+                sdfgan = init_sdfgan(sess_0)
+                show_all_variables()
                 # generate a sample from sdfgan first
                 if not sdfgan.load(FLAGS.checkpoint_dir):
                     raise Exception("[!] Could not load SDFGAN model. Train first, then run test mode.")
-                FLAGS.test_from_input_path = create_sdfgan_samples(sess, sdfgan, FLAGS)
-            
-            # postprocess samples (low-pass filter)
-            sdf = np.squeeze(np.load(FLAGS.test_from_input_path), axis=-1)
-            sdf_lf = batch_lowpass(sdf)
+                FLAGS.test_from_input_path = create_sdfgan_samples(sess_0, sdfgan, FLAGS)
+            sess_0.close()
 
-            # create and save final samples
-            sdf_hf = create_pix2pix_samples(sess, pix2pix, sdf_lf)
+        # post-process samples (low-pass filter)
+        sdf = np.squeeze(np.load(FLAGS.test_from_input_path), axis=-1)
+        sdf_lf = batch_lowpass(sdf)
+
+        # create and save final samples
+        tf.reset_default_graph()
+        with tf.Session(config=run_config) as sess_1:
+            pix2pix = init_pix2pix(sess_1)
+            show_all_variables()
+            if not pix2pix.load(FLAGS.checkpoint_dir):
+                raise Exception("[!] Could not load Pix2Pix model. Train first, then run test mode.")
+            sdf_hf = np.squeeze(create_pix2pix_samples(sess_1, pix2pix, sdf_lf), axis=-1)
             sdf_all = sdf_lf + sdf_hf
-            sdf_save = np.array([sdf_all, sdf_lf, sdf_hf])
+            sdf_save = np.concatenate((np.expand_dims(sdf_all, axis=0),
+                                       np.expand_dims(sdf_lf, axis=0),
+                                       np.expand_dims(sdf_hf, axis=0)), axis=0)
             fname = os.path.join(FLAGS.sample_dir, "full_final_samples.npy")
             np.save(fname, sdf_save)
             print("Saving final full samples to {0}, "
                   "shape: {1} (combine_freq/low_freq/hi_freq, sample_num, dim0, dim1, dim2)"
                   .format(fname, sdf_save.shape))
+        sess_1.close()
 
-        else:
-            raise Exception("[!] Model must be 'sdfgan' or 'pix2pix'.")
+    else:
+        raise Exception("[!] Model must be 'sdfgan' or 'pix2pix'.")
 
                 
 if __name__ == '__main__':

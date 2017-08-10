@@ -48,8 +48,8 @@ class Pix2Pix(object):
         self.input_fname_pattern = input_fname_pattern
         self.checkpoint_dir = checkpoint_dir
         self.dataset_dir = dataset_dir
-        self.log_dir = log_dir
-        self.sample_dir = sample_dir
+        self.log_dir = os.path.join(log_dir, "pix2pix_log")
+        self.sample_dir = os.path.join(sample_dir, "pix2pix_sample")
         self.build_model()
 
     def build_model(self):
@@ -294,7 +294,7 @@ class Pix2Pix(object):
         print("[!] Training of Pix2Pix Network Complete.")
 
     def discriminator(self, discrim_inputs, discrim_targets, reuse=False):
-        with tf.variable_scope("discriminator") as scope:
+        with tf.variable_scope("pix2pix_discriminator") as scope:
             if reuse:
                 scope.reuse_variables()
             n_layers = 3
@@ -330,7 +330,7 @@ class Pix2Pix(object):
             return layers[-1]
 
     def generator(self, generator_inputs):
-        with tf.variable_scope("generator") as scope:
+        with tf.variable_scope("pix2pix_generator") as scope:
             layers = []
 
             # encoder_1: [batch, 64, 64, 64, in_channels] => [batch, 32, 32, gf_dim]
@@ -395,7 +395,7 @@ class Pix2Pix(object):
             return layers[-1]
 
     def sampler(self, generator_inputs):
-        with tf.variable_scope("generator") as scope:
+        with tf.variable_scope("pix2pix_generator") as scope:
             scope.reuse_variables()
 
             layers = []
@@ -463,12 +463,12 @@ class Pix2Pix(object):
 
     @property
     def model_dir(self):
-        return "Pix2Pix" + "{}_{}_{}_{}_{}".format(
-            self.dataset_name.replace("_freqsplit", ""), self.batch_size,
+        return "Pix2Pix_" + "{}_{}_{}_{}".format(
+            self.dataset_name.replace("_freqsplit", ""),
             self.image_depth, self.image_height, self.image_width)
 
     def save(self, checkpoint_dir, step):
-        model_name = "SDFGAN.model"
+        model_name = "Pix2Pix.model"
         checkpoint_dir = os.path.join(checkpoint_dir, self.model_dir)
 
         if not os.path.exists(checkpoint_dir):

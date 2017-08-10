@@ -145,7 +145,7 @@ def batch_lowpass(s_batch, r=8, mask_type='boxed'):
     assert len(s_batch.shape) > 3
     process_list = []
     for i in range(s_batch.shape[0]):
-        s_lf, _ = freq_split(s_batch, r=r, mask_type=mask_type)
+        s_lf, _ = freq_split(s_batch[i, :, :, :], r=r, mask_type=mask_type)
         process_list.append(s_lf)
 
     return np.array(process_list)
