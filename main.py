@@ -113,15 +113,29 @@ def main(_):
             show_all_variables()
                 
         if FLAGS.model == 'sdfgan' and FLAGS.is_train:
+            os.makedirs(os.path.join(FLAGS.sample_dir, "sdfgan_sample"))
+            os.makedirs(os.path.join(FLAGS.log_dir, "sdfgan_log"))    
             sdfgan.train(FLAGS)
+                
         elif FLAGS.model == 'pix2pix' and FLAGS.is_train:
+            os.makedirs(os.path.join(FLAGS.sample_dir, "pix2pix_sample"))
+            os.makedirs(os.path.join(FLAGS.log_dir, "pix2pix_log"))
             pix2pix.train(FLAGS)
+                
         elif not FLAGS.is_train:  # test mode
+            # load pix2pix network
             if not pix2pix.load(FLAGS.checkpoint_dir):
                 raise Exception("[!] Could not load Pix2Pix model. Train first, then run test mode.")
+                
+            # load sdfgan network if necessary
             if FLAGS.test_from_input_path is None:
                 # generate a sample from sdfgan first
-                
+                if not sdfgan.load(FLAGS.checkpoint_dir):
+                    raise Exception("[!] Could not load SDFGAN model. Train first, then run test mode.")
+                FLAGS.test_from_input_path = create_sdfgan_samples(sess, sdfgan, FLAGS)
+            
+            # postprocess samples (low-pass filter)
+            
         else:
             raise Exception("[!] Model must be 'sdfgan' or 'pix2pix'.")
 
