@@ -17,5 +17,5 @@ python main.py \
 --log_dir=${LOG_DIR} \
 --sample_dir=${SAMPLE_DIR} \
 --checkpoint_dir=${CHECKPOINT_DIR} \
---dataset=shapenet_plane \
+--dataset=${DATASET} \
 --sample_num=64
