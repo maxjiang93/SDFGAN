@@ -29,13 +29,14 @@ flags.DEFINE_string("log_dir", "logs", "Directory name to save the log files [lo
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_integer("num_gpus", 1, "Number of GPUs to use [1]")
 flags.DEFINE_integer("random_seed", 1, "Random seed [1]")
+flags.DEFINE_integer("save_inverval", 200, "Interval in steps for saving model and samples [200]")
 
 # pix2pix specific training flags
 flags.DEFINE_integer("gan_weight", 1, "GAN weight in generator loss function. [1]")
 flags.DEFINE_integer("l1_weight", 100, "L1 weight in generator loss function. [100]")
 
 # testing flags
-flags.DEFINE_integer("sample_num", 64, "Number of samples. [16]")
+flags.DEFINE_integer("sample_num", 16, "Number of samples. [16]")
 flags.DEFINE_string("test_from_input_path", None, "Path to test inputs. [None]")
 
 FLAGS = flags.FLAGS
@@ -85,7 +86,8 @@ def main(_):
                 dataset_dir=FLAGS.dataset_dir,
                 log_dir=FLAGS.log_dir,
                 sample_dir=FLAGS.sample_dir,
-                num_gpus=FLAGS.num_gpus)
+                num_gpus=FLAGS.num_gpus,
+                save_interval=FLAGS.save_interval)
        
             show_all_variables()
         
@@ -106,7 +108,8 @@ def main(_):
                 dataset_dir=FLAGS.dataset_dir,
                 log_dir=FLAGS.log_dir,
                 sample_dir=FLAGS.sample_dir,
-                num_gpus=FLAGS.num_gpus)
+                num_gpus=FLAGS.num_gpus,
+                save_interval=FLAGS.save_interval)
 
             show_all_variables()
                 

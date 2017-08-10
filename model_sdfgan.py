@@ -11,7 +11,7 @@ def conv_out_size_same(size, stride):
 
 
 class SDFGAN(object):
-    def __init__(self, sess, num_gpus=1, image_depth=64, image_height=64, image_width=64,
+    def __init__(self, sess, num_gpus=1, image_depth=64, image_height=64, image_width=64, save_interval=200,
                  batch_size=64, sample_num=64, z_dim=200, gf_dim=64, df_dim=64,c_dim=1, dataset_name='shapenet',
                  input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None):
         """
@@ -39,6 +39,7 @@ class SDFGAN(object):
         self.df_dim = df_dim
 
         self.c_dim = c_dim
+        self.save_interval = save_interval
         self.num_gpus = num_gpus
         self.glob_batch_size = self.num_gpus * self.batch_size
 
@@ -296,8 +297,8 @@ class SDFGAN(object):
                       % (epoch, idx, batch_idxs,
                          counter, timestr, errD_fake + errD_real, errG, d_accu_last_batch))
 
-                # save model and samples every 200 iterations
-                if np.mod(counter, 200) == 1:
+                # save model and samples every save_interval iterations
+                if np.mod(counter, self.save_interval) == 1:
                     samples = self.sess.run(self.sampler,feed_dict={self.z: sample_z})
                     np.save(self.sample_dir+'/sample_{:05d}.npy'.format(counter), samples)
                     print("[Sample] Iter {0}, saving sample size of {1}, saving checkpoint."

@@ -12,7 +12,7 @@ EPS = 1e-12
 class Pix2Pix(object):
     def __init__(self, sess, image_depth=64, image_height=64, image_width=64,
                  batch_size=64, sample_num=64, gf_dim=64, df_dim=64, gan_weight=1, l1_weight=100,
-                 c_dim=1, dataset_name='shapenet_freqsplit', num_gpus=1,
+                 c_dim=1, dataset_name='shapenet_freqsplit', num_gpus=1, save_interval=200,
                  input_fname_pattern='*.npy', checkpoint_dir=None, dataset_dir=None, log_dir=None, sample_dir=None):
         """
 
@@ -36,8 +36,11 @@ class Pix2Pix(object):
         self.df_dim = df_dim
 
         self.c_dim = c_dim
+        self.save_inverval = save_interval
+
         self.gan_weight = gan_weight
         self.l1_weight = l1_weight
+
         self.num_gpus = num_gpus
         self.glob_batch_size = self.num_gpus * self.batch_size
 
@@ -265,8 +268,8 @@ class Pix2Pix(object):
                 print("Epoch:[%3d] [%3d/%3d] Iter:[%5d] eta(h:m:s): %s, d_loss: %.8f, g_loss: %.8f"
                       % (epoch, idx, batch_idxs, counter, timestr, lossD, lossG))
 
-                # save checkpoint and samples every 200 steps
-                if np.mod(counter, 200) == 1:
+                # save checkpoint and samples every save_interval steps
+                if np.mod(counter, self.save_inverval) == 1:
                     sample_gen = self.sess.run(self.sampler, feed_dict={self.sample_inputs: sample_in})
                     sample = np.concatenate((np.expand_dims(sample_in, axis=0),  # sample_num x 64 x 64 x 64 x 1
                                              np.expand_dims(sample_tg, axis=0),  # sample_num x 64 x 64 x 64 x 1
