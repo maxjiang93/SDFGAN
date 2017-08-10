@@ -1,10 +1,14 @@
 # 3D-SDFGAN
 3D Signed Distance Function Based Generative Adversarial Networks  
-This study seeks to generate realistic looking, mesh-based 3D models by using GANs.
 
 ![Image of Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.png)
 
 ![3D Model of Above Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.stl)
+
+### About this study
+This study seeks to generate realistic looking, mesh-based 3D models by using GANs. Training is based on [ShapeNetCore dataset](https://www.shapenet.org/) that has been post-processed into 64x64x64 signed distance function fields. More details about this study can be found in [this article](www.somelink.com)
+
+## Reproducing the results
 ### Collecting the dataset
 First, define the project directory to store the data and computed results (checkpoints, logs, samples). Change the project directory, job name and dataset to train in the file `define_path.sh`. These parameters will be called globally throughout the training and testing:
 ```bash
@@ -43,7 +47,10 @@ the above code will run the freqsplit algorithm on multiple threads. Trailing 0 
 ```
 ./test_all.sh
 ```
-
+### Open Source Code Credits
 Borrows code from the following repositories:
- * DCGAN-tensorflow repository by Taehoon Kim / [@carpedm20](http://carpedm20.github.io/)
- * Pix2pix-tensorflow repository by affinelayer / [@affinelayer](https://github.com/affinelayer/pix2pix-tensorflow)
+ * (DCGAN-tensorflow)(http://carpedm20.github.io/) repository by Taehoon Kim
+ * (Pix2pix-tensorflow)[(https://github.com/affinelayer/pix2pix-tensorflow)] repository by affinelayer
+Relied on the following Open Source project for 3D pre and post processing of 3D mesh / signed distance function:
+ * [Libigl](https://github.com/libigl/libigl) interactive graphics library by Alec Jacobson et. al.
+ * [Meshlab](http://www.meshlab.net/) for mesh rendering and minor post-processing.
