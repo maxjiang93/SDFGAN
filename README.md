@@ -52,8 +52,8 @@ Codes for postprocessing the results to create mesh is not including in this cur
 
 ## Open Source Code Credits
 Borrows code from the following repositories:
- * (DCGAN-tensorflow)(http://carpedm20.github.io/) repository by Taehoon Kim
- * (Pix2pix-tensorflow)[(https://github.com/affinelayer/pix2pix-tensorflow)] repository by affinelayer
+ * [DCGAN-tensorflow](http://carpedm20.github.io/) repository by Taehoon Kim
+ * [Pix2pix-tensorflow](https://github.com/affinelayer/pix2pix-tensorflow) repository by affinelayer
 
 Relied on the following Open Source projects for 3D pre and post processing of 3D mesh / signed distance function:
  * [Libigl](https://github.com/libigl/libigl) interactive graphics library by Alec Jacobson et. al.
