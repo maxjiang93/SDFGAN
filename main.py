@@ -1,7 +1,7 @@
 from model_sdfgan import SDFGAN
 from model_pix2pix import Pix2Pix
 from utils import *
-from ops import batch_lowpass
+from ops import batch_lowpass, batch_mirr
 import shutil
 
 import tensorflow as tf
@@ -141,9 +141,9 @@ def main(_):
                 FLAGS.test_from_input_path = create_sdfgan_samples(sess_0, sdfgan, FLAGS)
             sess_0.close()
 
-        # post-process samples (low-pass filter)
+        # post-process samples (low-pass filter & mirroring)
         sdf = np.squeeze(np.load(FLAGS.test_from_input_path), axis=-1)
-        sdf_lf = batch_lowpass(sdf)
+        sdf_lf = batch_mirr(batch_lowpass(sdf))
 
         # create and save final samples
         tf.reset_default_graph()

@@ -151,6 +151,25 @@ def batch_lowpass(s_batch, r=8, mask_type='boxed'):
     return np.array(process_list)
 
 
+def batch_mirr(s_batch, mirr='l'):
+    assert len(s_batch.shape) > 3
+    process_list = []
+    for i in range(s_batch.shape[0]):
+        s = s_batch[i]
+        if mirr == 'r':
+            sr = s[:, :, int(s.shape[2] / 2):]
+            sl = np.flip(sr, axis=2)
+            s = np.concatenate((sl, sr), axis=2)
+        elif mirr == 'l':
+            sl = s[:, :, :int(s.shape[2] / 2)]
+            sr = np.flip(sl, axis=2)
+            s = np.concatenate((sl, sr), axis=2)
+        process_list.append(s)
+
+    return np.array(process_list)
+
+
+
 def pad_glob_batch(glob_batch_images, glob_batch_size):
     """pad tensor with zeros if smaller than a full batch"""
     pad_shape = [j for j in glob_batch_images.shape]
