@@ -326,7 +326,7 @@ class SDFGAN(object):
 
             return tf.nn.sigmoid(h4), h4
 
-    def generator(self, z, reuse=False):
+    def generator(self, z, reuse=False, is_train=True):
         with tf.variable_scope("sdfgan_generator") as scope:
             if reuse:
                 scope.reuse_variables()
@@ -343,19 +343,19 @@ class SDFGAN(object):
 
             self.h0 = tf.reshape(
                 self.z_, [-1, s_d16, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(self.h0))
+            h0 = tf.nn.relu(self.g_bn0(self.h0, train=is_train))
 
             self.h1, self.h1_w, self.h1_b = deconv3d(
                 h0, [self.batch_size, s_d8, s_h8, s_w8, self.gf_dim * 4], name='g_h1', with_w=True)
-            h1 = tf.nn.relu(self.g_bn1(self.h1))
+            h1 = tf.nn.relu(self.g_bn1(self.h1, train=is_train))
 
             h2, self.h2_w, self.h2_b = deconv3d(
                 h1, [self.batch_size, s_d4, s_h4, s_w4, self.gf_dim * 2], name='g_h2', with_w=True)
-            h2 = tf.nn.relu(self.g_bn2(h2))
+            h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
 
             h3, self.h3_w, self.h3_b = deconv3d(
                 h2, [self.batch_size, s_d2, s_h2, s_w2, self.gf_dim * 1], name='g_h3', with_w=True)
-            h3 = tf.nn.relu(self.g_bn3(h3))
+            h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
 
             h4, self.h4_w, self.h4_b = deconv3d(
                 h3, [self.batch_size, s_d, s_h, s_w, self.c_dim], name='g_h4', with_w=True)
