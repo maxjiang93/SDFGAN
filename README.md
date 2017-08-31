@@ -1,7 +1,7 @@
 # 3D-SDFGAN
 3D Signed Distance Function Based Generative Adversarial Networks  
 
-![Image of Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.png)
+![Image of Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_01.gif)
 
 ![3D Model of Above Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.stl)
 
