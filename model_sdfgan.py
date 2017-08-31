@@ -180,7 +180,7 @@ class SDFGAN(object):
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-        self.sampler = self.generator(self.z, reuse=True)
+        self.sampler = self.generator(self.z, reuse=True, is_train=False)
         self.saver = tf.train.Saver()
 
     def train(self, config):
