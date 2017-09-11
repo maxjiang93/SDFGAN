@@ -139,6 +139,7 @@ def main(_):
                 if not sdfgan.load(FLAGS.checkpoint_dir):
                     raise Exception("[!] Could not load SDFGAN model. Train first, then run test mode.")
                 FLAGS.test_from_input_path = create_sdfgan_samples(sess_0, sdfgan, FLAGS)
+                print("Saving intermediate unprocessed samples to {0}".format(FLAGS.test_from_input_path))
             sess_0.close()
 
         # post-process samples (low-pass filter & mirroring)
