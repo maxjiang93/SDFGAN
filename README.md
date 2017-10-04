@@ -26,7 +26,7 @@ run the script to export variables to the current shell:
 sudo chmod +x *.sh
 ./define_path.sh
 ```
-go to project directory and download data:
+go to project directory and download data (~28.8G. Might take quite long.):
 ```
 cd $PROJ_DIR
 wget http://island.me.berkeley.edu/data/data.tar.gz
