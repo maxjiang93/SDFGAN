@@ -29,7 +29,7 @@ sudo chmod +x *.sh
 go to project directory and download data:
 ```
 cd $PROJ_DIR
-wget _link_to_the_dataset_
+wget http://island.me.berkeley.edu/data/data.tar.gz
 tar -xvf data.tar
 ```
 go back to code directory to run frequency spliting code for a dataset (e.g. car dataset) for running pix2pix:
