@@ -1,9 +1,8 @@
 # 3D-SDFGAN
 3D Signed Distance Function Based Generative Adversarial Networks  
 
-![Image of Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_01.gif)
-
-![3D Model of Above Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car_sample.stl)
+![3D Model of Above Car Sample](https://github.com/maxjiang93/SDFGAN/blob/combined/images/car.stl)
+![Rendered Furniture Samples (Chairs and Tables)](https://github.com/maxjiang93/SDFGAN/blob/combined/images/furniture-rendered.png)
 
 ## About this study
 This study seeks to generate realistic looking, mesh-based 3D models by using GANs. Training is based on [ShapeNetCore dataset](https://www.shapenet.org/) that has been post-processed into 64x64x64 signed distance function fields. More details about this study can be found in [this paper](https://arxiv.org/abs/1709.07581)
