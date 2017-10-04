@@ -1,7 +1,9 @@
 # 3D-SDFGAN
 3D Signed Distance Function Based Generative Adversarial Networks  
 
-<div class='modelo-wrapper'> <iframe src="https://app.modelo.io/embedded/ITW6NLo3eT?viewport=false&autoplay=false" width="640" height="360" frameborder="0" mozallowfullscreen webkitallowfullscreen allowfullscreen ></iframe> <p style="font-size: 13px; font-weight: bold; margin: 10px 10px 10px 0; color: #666666;"> car_sample_15 <span style="font-weight: normal;">By</span> Max Jiang <a href="http://www.modelo.io?utm_source=embed&utm_medium=embedfooter&utm_campaign=model%20embed%20footer" target="_blank" style="display: inline-block; margin-left: 6px; padding-left: 8px; border-left: 1px solid #e2e2e2; color: #e8776f; cursor: pointer; text-decoration: none;">Modelo »</a> </p> </div>
+<img src="/images/car_15_small.gif" width="500" height="500">
+
+![3D Model of Above Car Sample](/images/car_sample.stl)
 
 <img src="/images/furniture-render.gif" width="500" height="500">
 
